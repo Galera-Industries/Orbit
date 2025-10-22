@@ -8,7 +8,7 @@
 import AppKit
 
 /// Класс для отслеживания буфера обмена пользователя
-final class ClipboardMonitor {
+final class ClipboardMonitor: ClipboardMonitorProtocol {
     private var timer: Timer? // сомнительное решение, возможно нужно другой вид таймера использовать
     private var lastChangeCount: Int
     private let pasteboard = NSPasteboard.general
@@ -56,4 +56,9 @@ final class ClipboardMonitor {
         }
         return nil
     }
+}
+
+protocol ClipboardMonitorProtocol {
+    func startMonitoring()
+    func stopMonitoring()
 }

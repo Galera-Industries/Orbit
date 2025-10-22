@@ -8,9 +8,14 @@
 import Foundation
 
 final class ClipboardModule: ModulePlugin {
+    private var c: ModuleContext? // храним все зависимости
     let mode: AppMode = .clipboard
-    func activate(context: ModuleContext) {}
-    func deactivate() {}
+    func activate(context: ModuleContext) {
+        c = context
+    }
+    func deactivate() {
+        c = nil
+    }
     
     func parse(query: ParsedQuery) -> Any? { query.text }
     

@@ -92,7 +92,7 @@ enum ClipboardType: String {
 
 // MARK: - Контекст для модулей (минимум)
 struct ModuleContext {
-    // сюда можно добавлять зависимости: WindowManager, EventBus, сервисы
+    let clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor()
 }
 
 // MARK: - Протокол плагина (модуля)
