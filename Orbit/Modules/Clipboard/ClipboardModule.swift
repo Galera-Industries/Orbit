@@ -67,8 +67,9 @@ final class ClipboardModule: ModulePlugin {
         case .image:
             pasteboard.setData(item.content, forType: .tiff)
         case .fileURL:
-            if let urlString = String(data: item.content, encoding: .utf8), let fileURL = URL(string: urlString) {
-                pasteboard.writeObjects([fileURL as NSURL])
+            if let paths = try? JSONDecoder().decode([String].self, from: item.content) {
+                let urls = paths.map { NSURL(fileURLWithPath: $0) }
+                pasteboard.writeObjects(urls)
             }
         }
     }
