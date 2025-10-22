@@ -46,18 +46,18 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
         save()
     }
     
-    private func save() {
-        // сохраняем в UserDefaults
-        if let encoded = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(encoded, forKey: storageKey)
-        }
-    }
-    
     func load() {
         // выгружаем из UserDefaults
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([ClipboardItem].self, from: data) {
             items = decoded
+        }
+    }
+    
+    private func save() {
+        // сохраняем в UserDefaults
+        if let encoded = try? JSONEncoder().encode(items) {
+            UserDefaults.standard.set(encoded, forKey: storageKey)
         }
     }
 }
@@ -67,4 +67,5 @@ protocol ClipboardRepositoryProtocol {
     func getAll() -> [ClipboardItem]
     func search(_ query: String) -> [ClipboardItem]
     func clear()
+    func load()
 }

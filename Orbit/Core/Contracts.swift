@@ -110,7 +110,7 @@ enum ClipboardType: String, Codable {
 
 // MARK: - Контекст для модулей (минимум)
 struct ModuleContext {
-    let clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor()
+    var clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor() // var из-за того что внутри есть поле-колбек, которому нужно будет присвоить значение
     let clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository()
 }
 

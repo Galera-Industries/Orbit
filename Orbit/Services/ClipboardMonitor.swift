@@ -51,7 +51,9 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
         if let imageData = pasteboard.data(forType: .tiff), !imageData.isEmpty {
             return ClipboardItem(type: .image, content: imageData)
         }
-        if let fileURLData = pasteboard.data(forType: .fileURL), !fileURLData.isEmpty {
+        if let fileURLString = pasteboard.string(forType: .fileURL), !fileURLString.isEmpty,
+            let fileURL = URL(string: fileURLString) {
+            let fileURLData = fileURL.dataRepresentation
             return ClipboardItem(type: .fileURL, content: fileURLData)
         }
         return nil
@@ -61,4 +63,5 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
 protocol ClipboardMonitorProtocol {
     func startMonitoring()
     func stopMonitoring()
+    var onClipboardChange: ((ClipboardItem) -> Void)? { get set }
 }
