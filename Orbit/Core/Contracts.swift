@@ -60,13 +60,16 @@ struct ResultItem: Identifiable {
     let primaryAction: ItemAction
     let secondaryAction: ItemAction?
     
+    let source: Any? // поле для данных
+    
     init(
         title: String,
         subtitle: String? = nil,
         icon: String? = nil,
         accessory: String? = nil,
         primaryAction: @escaping () -> Void,
-        secondaryAction: (() -> Void)? = nil
+        secondaryAction: (() -> Void)? = nil,
+        source: Any? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -74,6 +77,7 @@ struct ResultItem: Identifiable {
         self.accessory = accessory
         self.primaryAction = .init(run: primaryAction)
         if let s = secondaryAction { self.secondaryAction = .init(run: s) } else { self.secondaryAction = nil }
+        self.source = source
     }
 }
 
@@ -97,7 +101,18 @@ struct ClipboardItem: Identifiable, Codable {
         case .image:
             return "Image"
         case .fileURL:
-            return String(data: content, encoding: .utf8) ?? ""
+            guard
+                let paths = try? JSONDecoder().decode([String].self, from: content),
+                !paths.isEmpty
+            else {
+                return "File"
+            }
+            let filenames = paths.map { URL(fileURLWithPath: $0).lastPathComponent }
+            if filenames.count == 1 {
+                return filenames[0]
+            } else {
+                return filenames.joined(separator: ", ")
+            }
         }
     }
 }

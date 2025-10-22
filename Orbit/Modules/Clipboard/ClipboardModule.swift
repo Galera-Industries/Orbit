@@ -35,7 +35,8 @@ final class ClipboardModule: ModulePlugin {
                 accessory: "↩︎",
                 primaryAction: { [weak self] in
                     self?.pasteItem(clipItem)
-                }
+                },
+                source: clipItem // сохраняем данные, чтобы достать их из UI
             )
         }
         
