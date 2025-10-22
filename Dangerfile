@@ -35,5 +35,4 @@ def check_for_fun_metrics
     MARKDOWN
   end
 end
-
 check_for_fun_metrics
