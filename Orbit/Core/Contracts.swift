@@ -111,7 +111,8 @@ enum ClipboardType: String, Codable {
 // MARK: - Контекст для модулей (минимум)
 struct ModuleContext {
     var clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor() // var из-за того что внутри есть поле-колбек, которому нужно будет присвоить значение
-    let clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository()
+    let coreData: CoreDataProtocol = CoreDataManager()
+    lazy var clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository(coreData: coreData)
 }
 
 // MARK: - Протокол плагина (модуля)
