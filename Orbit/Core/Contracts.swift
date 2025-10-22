@@ -77,6 +77,19 @@ struct ResultItem: Identifiable {
     }
 }
 
+struct ClipboardItem: Identifiable {
+    let id = UUID()
+    let timestamp = Date()
+    let type: ClipboardType
+    let content: Data
+}
+
+enum ClipboardType: String {
+    case text
+    case image
+    case fileURL
+}
+
 // MARK: - Контекст для модулей (минимум)
 struct ModuleContext {
     // сюда можно добавлять зависимости: WindowManager, EventBus, сервисы
