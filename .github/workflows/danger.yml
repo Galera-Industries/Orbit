@@ -18,9 +18,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install gems
-        run: |
-          gem install bundler
+      - name: Install dependencies
+        run: bundle install
 
       - name: Run Danger
         env:
