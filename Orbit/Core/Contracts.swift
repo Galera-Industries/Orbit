@@ -77,9 +77,41 @@ struct ResultItem: Identifiable {
     }
 }
 
+struct ClipboardItem: Identifiable, Codable {
+    let id: UUID
+    let timestamp: Date
+    let type: ClipboardType
+    let content: Data
+    
+    init(id: UUID = UUID(), timestamp: Date = Date(), type: ClipboardType, content: Data) {
+        self.id = id
+        self.timestamp = timestamp
+        self.type = type
+        self.content = content
+    }
+    
+    var displayText: String {
+        switch type {
+        case .text:
+            return String(data: content, encoding: .utf8) ?? ""
+        case .image:
+            return "Image"
+        case .fileURL:
+            return String(data: content, encoding: .utf8) ?? ""
+        }
+    }
+}
+
+enum ClipboardType: String, Codable {
+    case text
+    case image
+    case fileURL
+}
+
 // MARK: - Контекст для модулей (минимум)
 struct ModuleContext {
-    // сюда можно добавлять зависимости: WindowManager, EventBus, сервисы
+    var clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor() // var из-за того что внутри есть поле-колбек, которому нужно будет присвоить значение
+    let clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository()
 }
 
 // MARK: - Протокол плагина (модуля)
@@ -106,3 +138,4 @@ struct EventModifiers: OptionSet {
     let rawValue: Int
     static let shift = EventModifiers(rawValue: 1 << 0)
 }
+
