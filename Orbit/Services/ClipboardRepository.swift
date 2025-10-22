@@ -7,58 +7,90 @@
 
 import Foundation
 
-/// userdefaults для копирований
+/// репозиторий для копирований
 final class ClipboardRepository: ClipboardRepositoryProtocol {
-    private var items: [ClipboardItem] = []
+    private let coreData: CoreDataProtocol
+    private var cachedItems: [ClipboardItem] = []
+    private var isLoaded: Bool = false // для проверки что мы уже загрузили кэш
     private let maxItems = 100
-    private let storageKey = "clipboard"
     
-    /// добавление копирования в  userdefaults
+    init(coreData: CoreDataProtocol) {
+        self.coreData = coreData
+    }
+    
+    /// добавляем новое копирование
     func add(_ item: ClipboardItem) {
-        if let lastItem = items.first, lastItem.content == item.content { // не добавляет дубликаты
+        firstLoad()
+        
+        if let lastItem = cachedItems.first, lastItem.content == item.content {
             return
         }
+        cachedItems.insert(item, at: 0)
         
-        items.insert(item, at: 0)
-        if items.count > maxItems {
-            items = Array(items.prefix(maxItems)) // если больше 100, то берем только префикс размера maxItems
+        if cachedItems.count > maxItems {
+            let itemToRemove = cachedItems.removeLast()
+            coreData.deleteItem(itemToRemove)
         }
-        save()
+        
+        coreData.createItem(item)
     }
     
     /// получение всех копирований
     func getAll() -> [ClipboardItem] {
-        return items
+        firstLoad()
+        return cachedItems
     }
     
     /// поиск копирования по названию
     func search(_ query: String) -> [ClipboardItem] {
-        guard !query.isEmpty else { return items }
-        
-        return items.filter { item in
+        firstLoad()
+        guard !query.isEmpty else { return cachedItems }
+        return cachedItems.filter { item in
             item.displayText.localizedCaseInsensitiveContains(query)
         }
     }
     
     /// удаляем все копирования
     func clear() {
-        items.removeAll()
-        save()
+        firstLoad()
+        // Очищаем кеш
+        let itemsToDelete = cachedItems
+        cachedItems.removeAll()
+        // Удаляем из Core Data
+        itemsToDelete.forEach { coreData.deleteItem($0) }
     }
     
     func load() {
-        // выгружаем из UserDefaults
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let decoded = try? JSONDecoder().decode([ClipboardItem].self, from: data) {
-            items = decoded
-        }
+        let cdItems = coreData.fetchAll()
+        cachedItems = cdItems
+            .compactMap { mapFromCoreData($0) }
+            .sorted { $0.timestamp > $1.timestamp }
+            .prefix(maxItems)
+            .map { $0 }
+        
+        isLoaded = true
     }
     
-    private func save() {
-        // сохраняем в UserDefaults
-        if let encoded = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(encoded, forKey: storageKey)
+    private func firstLoad() {
+        guard !isLoaded else { return }
+        load()
+    }
+    
+    private func mapFromCoreData(_ cdItem: CDClipboardItem) -> ClipboardItem? {
+        guard let id = cdItem.id,
+              let timestamp = cdItem.timestamp,
+              let typeString = cdItem.type,
+              let type = ClipboardType(rawValue: typeString),
+              let content = cdItem.content else {
+            return nil
         }
+        
+        return ClipboardItem(
+            id: id,
+            timestamp: timestamp,
+            type: type,
+            content: content
+        )
     }
 }
 
