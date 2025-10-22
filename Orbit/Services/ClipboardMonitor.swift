@@ -46,15 +46,26 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
     
     private func captureCurrentClipboard() -> ClipboardItem? {
         if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-           !fileURLs.isEmpty {
-            guard let urlsData = try? JSONEncoder().encode(fileURLs.map { $0.path }) else { return nil }
-            return ClipboardItem(type: .fileURL, content: urlsData)
-        }
-        if let stringData = pasteboard.data(forType: .string), !stringData.isEmpty {
-            return ClipboardItem(type: .text, content: stringData)
+           let url = fileURLs.first,
+           FileManager.default.fileExists(atPath: url.path) {
+
+            // Исключаем случай, когда это просто временное изображение из Preview или Safari
+            // (такие URL обычно начинаются с /private/var или /var/folders)
+            if !url.path.starts(with: "/private/var") && !url.path.starts(with: "/var/folders") {
+                if let urlsData = try? JSONEncoder().encode(fileURLs.map { $0.path }) {
+                    return ClipboardItem(type: .fileURL, content: urlsData)
+                }
+            }
         }
         if let imageData = pasteboard.data(forType: .tiff), !imageData.isEmpty {
-            return ClipboardItem(type: .image, content: imageData)
+            if let image = NSImage(data: imageData) { // проверяем что это вообще картинка
+                return ClipboardItem(type: .image, content: imageData)
+            }
+        }
+        if let string = pasteboard.string(forType: .string),
+           let data = string.data(using: .utf8),
+           !data.isEmpty {
+            return ClipboardItem(type: .text, content: data)
         }
         return nil
     }

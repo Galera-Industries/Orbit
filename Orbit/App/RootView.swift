@@ -32,21 +32,11 @@ struct RootView: View {
                         L.search.info("query changed -> '\(newQ, privacy: .public)'")
                         
                         shell.resetSelection()
-                        shell.performSearch() 
+                        shell.performSearch()
                     }
                     
-                    ScrollView {
-                        LazyVStack(spacing: 6) {
-                            ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
-                                ResultRow(item: item, isSelected: index == shell.selectedIndex)
-                                    .onHover { hovering in if hovering { shell.selectedIndex = index } }
-                                    .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
-                            }
-                        }
-                        .padding(6)
-                    }
-                    .scrollIndicators(.never)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
+                    PreviewHStack()
+                    
                 }
                 .padding(16)
                 .frame(minWidth: 720, minHeight: 420)
@@ -71,5 +61,46 @@ struct RootView: View {
             isSearchFocused = true
         }
         .onDisappear { keyMonitor = nil }
+    }
+}
+
+struct PreviewHStack: View {
+    @EnvironmentObject var shell: ShellModel
+    var body: some View {
+        HStack {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
+                        ResultRow(item: item, isSelected: index == shell.selectedIndex)
+                            .onHover { hovering in if hovering { shell.selectedIndex = index } }
+                            .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
+                    }
+                }
+                .padding(6)
+            }
+            .scrollIndicators(.never)
+            .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
+            .frame(width: 320)
+            
+            if let selectedItem = shell.selectedItem,
+               let clipItem = selectedItem.source as? ClipboardItem {
+                ClipboardPreviewView(item: clipItem)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            } else {
+                VStack {
+                    Text("No item selected")
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+}
+
+extension ShellModel {
+    var selectedItem: ResultItem? {
+        guard selectedIndex >= 0 && selectedIndex < filteredItems.count else { return nil }
+        return filteredItems[selectedIndex]
     }
 }
