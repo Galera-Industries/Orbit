@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: writeR
+  pull-requests: write
   issues: write
 
 jobs:
