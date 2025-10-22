@@ -45,16 +45,16 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
     }
     
     private func captureCurrentClipboard() -> ClipboardItem? {
+        if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+           !fileURLs.isEmpty {
+            guard let urlsData = try? JSONEncoder().encode(fileURLs.map { $0.path }) else { return nil }
+            return ClipboardItem(type: .fileURL, content: urlsData)
+        }
         if let stringData = pasteboard.data(forType: .string), !stringData.isEmpty {
             return ClipboardItem(type: .text, content: stringData)
         }
         if let imageData = pasteboard.data(forType: .tiff), !imageData.isEmpty {
             return ClipboardItem(type: .image, content: imageData)
-        }
-        if let fileURLString = pasteboard.string(forType: .fileURL), !fileURLString.isEmpty,
-            let fileURL = URL(string: fileURLString) {
-            let fileURLData = fileURL.dataRepresentation
-            return ClipboardItem(type: .fileURL, content: fileURLData)
         }
         return nil
     }
