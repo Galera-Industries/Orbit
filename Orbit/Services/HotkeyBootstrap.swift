@@ -14,6 +14,9 @@ enum HotkeyBootstrap {
     static func registerDefaults(windowManager: WindowManager, shell: ShellModel) {
         guard !registered else { return }
         registered = true
+        let digitkeyCodes: [UInt32] = [
+            KeyCode.one, KeyCode.two, KeyCode.three, KeyCode.four, KeyCode.five, KeyCode.six, KeyCode.seven, KeyCode.eight, KeyCode.nine
+        ]
         
         // ⌘⌥Space — показать/скрыть лаунчер (последний режим)
         HotkeyService.shared.register(keyCode: KeyCode.space, carbonModifiers: CarbonMods.cmdOpt) {
@@ -28,9 +31,11 @@ enum HotkeyBootstrap {
             windowManager.showAndFocus()
         }
         
-        HotkeyService.shared.register(keyCode: KeyCode.one, carbonModifiers: CarbonMods.cmdOpt) {
-            L.hotkey.info("⌘⌥One -> Quick Paste first")
-            shell.paste()
+        for (index, keyCode) in digitkeyCodes.enumerated() {
+            HotkeyService.shared.register(keyCode: keyCode, carbonModifiers: CarbonMods.cmdOpt) {
+                L.hotkey.info("⌘⌥\(index) -> Quick Paste \(index + 1)")
+                shell.paste(number: index)
+            }
         }
     }
 }
