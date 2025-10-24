@@ -22,7 +22,7 @@ def check_for_fun_metrics
   if edited.any? { |file| file.start_with?('.github/workflows/') && file.match?(/\.ya?ml$/) }
     message(<<~MARKDOWN)
       ### ⚙️ **Changes in workflow**
-      Detected changes in **#{workflow_changes.length}** file(s) GitHub Actions. 
+      Detected changes in GitHub Actions. 
       Please, make sure, that changes is safety and had been tested.
     MARKDOWN
   end
