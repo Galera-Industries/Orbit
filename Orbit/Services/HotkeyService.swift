@@ -122,6 +122,7 @@ final class HotkeyService {
 enum KeyCode {
     static let v: UInt32 = UInt32(kVK_ANSI_V)      // 9
     static let space: UInt32 = UInt32(kVK_Space)   // 49
+    static let one: UInt32 = UInt32(kVK_ANSI_1) // 1
 }
 enum CarbonMods {
     static let cmd: UInt32 = UInt32(cmdKey)

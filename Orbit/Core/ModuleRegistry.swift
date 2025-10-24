@@ -9,7 +9,7 @@ import Foundation
 
 final class ModuleRegistry {
     private var modules: [AppMode: ModulePlugin] = [:]
-    private var context = ModuleContext()
+    var context = ModuleContext() // хочу чтобы был доступ на уровне ShellModule
     
     func register(_ module: ModulePlugin) {
         modules[module.mode] = module

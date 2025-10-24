@@ -27,5 +27,10 @@ enum HotkeyBootstrap {
             shell.switchMode(.clipboard, prefillQuery: "") // пустой запрос, но форсируем режим
             windowManager.showAndFocus()
         }
+        
+        HotkeyService.shared.register(keyCode: KeyCode.one, carbonModifiers: CarbonMods.cmdOpt) {
+            L.hotkey.info("⌘⌥One -> Quick Paste first")
+            shell.paste()
+        }
     }
 }
