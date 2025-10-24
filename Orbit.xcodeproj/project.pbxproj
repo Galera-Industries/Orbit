@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		AA4E17DD2EABEBC300FD3916 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F37F64982EA63EF8000B7F9D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F37F649F2EA63EF8000B7F9D;
+			remoteInfo = Orbit;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		AA4E17D92EABEBC300FD3916 /* OrbitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OrbitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F37F64A02EA63EF8000B7F9D /* Orbit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Orbit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -24,6 +35,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA4E17DA2EABEBC300FD3916 /* OrbitTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OrbitTests;
+			sourceTree = "<group>";
+		};
 		F37F64A22EA63EF8000B7F9D /* Orbit */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -35,6 +51,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		AA4E17D62EABEBC300FD3916 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F37F649D2EA63EF8000B7F9D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -49,6 +72,7 @@
 			isa = PBXGroup;
 			children = (
 				F37F64A22EA63EF8000B7F9D /* Orbit */,
+				AA4E17DA2EABEBC300FD3916 /* OrbitTests */,
 				F37F64A12EA63EF8000B7F9D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -57,6 +81,7 @@
 			isa = PBXGroup;
 			children = (
 				F37F64A02EA63EF8000B7F9D /* Orbit.app */,
+				AA4E17D92EABEBC300FD3916 /* OrbitTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,6 +89,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		AA4E17D82EABEBC300FD3916 /* OrbitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA4E17DF2EABEBC300FD3916 /* Build configuration list for PBXNativeTarget "OrbitTests" */;
+			buildPhases = (
+				AA4E17D52EABEBC300FD3916 /* Sources */,
+				AA4E17D62EABEBC300FD3916 /* Frameworks */,
+				AA4E17D72EABEBC300FD3916 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA4E17DE2EABEBC300FD3916 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA4E17DA2EABEBC300FD3916 /* OrbitTests */,
+			);
+			name = OrbitTests;
+			packageProductDependencies = (
+			);
+			productName = OrbitTests;
+			productReference = AA4E17D92EABEBC300FD3916 /* OrbitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		F37F649F2EA63EF8000B7F9D /* Orbit */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F37F64AB2EA63EF9000B7F9D /* Build configuration list for PBXNativeTarget "Orbit" */;
@@ -93,9 +141,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
+				LastSwiftUpdateCheck = 1630;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					AA4E17D82EABEBC300FD3916 = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = F37F649F2EA63EF8000B7F9D;
+					};
 					F37F649F2EA63EF8000B7F9D = {
 						CreatedOnToolsVersion = 26.0;
 					};
@@ -116,11 +168,19 @@
 			projectRoot = "";
 			targets = (
 				F37F649F2EA63EF8000B7F9D /* Orbit */,
+				AA4E17D82EABEBC300FD3916 /* OrbitTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		AA4E17D72EABEBC300FD3916 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F37F649E2EA63EF8000B7F9D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -131,6 +191,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AA4E17D52EABEBC300FD3916 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F37F649C2EA63EF8000B7F9D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -140,7 +207,51 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		AA4E17DE2EABEBC300FD3916 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F37F649F2EA63EF8000B7F9D /* Orbit */;
+			targetProxy = AA4E17DD2EABEBC300FD3916 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		AA4E17E02EABEBC300FD3916 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XQ5MGT6276;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = mrdr.OrbitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Orbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Orbit";
+			};
+			name = Debug;
+		};
+		AA4E17E12EABEBC300FD3916 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XQ5MGT6276;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = mrdr.OrbitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Orbit.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Orbit";
+			};
+			name = Release;
+		};
 		F37F64A92EA63EF9000B7F9D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -335,6 +446,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AA4E17DF2EABEBC300FD3916 /* Build configuration list for PBXNativeTarget "OrbitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA4E17E02EABEBC300FD3916 /* Debug */,
+				AA4E17E12EABEBC300FD3916 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F37F649B2EA63EF8000B7F9D /* Build configuration list for PBXProject "Orbit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
