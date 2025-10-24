@@ -4,14 +4,6 @@ def check_for_fun_metrics
   additions = github.pr_json[:additions] || 0
   deletions = github.pr_json[:deletions] || 0
   
-  if deletions > additions && (deletions - additions) > 50
-    message(<<~MARKDOWN)
-      ### 🗑️ **Tossing out clutter**
-      **#{deletions - additions}** line(s) removed. Fewer lines, fewer bugs 🐛!
-    MARKDOWN
-  end
-
-  # Either comment for the small number of files changed or small number of lines changed, otherwise it gets crowded.
   files_changed = github.pr_json[:changed_files] || 0
   total_lines = deletions + additions
   
@@ -26,13 +18,6 @@ def check_for_fun_metrics
       Only **#{total_lines}** line(s) changed. Fast to review, faster to land! 🚀
     MARKDOWN
   end
-
-  if additions > 200
-    message(<<~MARKDOWN)
-      ### **OMG WHAT A PR?**
-      You added **#{additions}** lines of code. You are a monster!
-    MARKDOWN
-  end  
 
   workflow_files = edited.grep(%r{^\.github/workflows/.*\.ya?ml$})
   if !workflow_changes.empty?
