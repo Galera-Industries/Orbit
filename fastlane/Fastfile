@@ -24,7 +24,7 @@ platform :ios do
   desc "Test"
   lane :test do
     setup_ci
-    match(type: "development", platform: "macos", additional_cert_types: ["mac_development"])
+    match(type: "development", platform: "macos")
     scan(scheme: "Orbit")
   end
 
