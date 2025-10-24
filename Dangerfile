@@ -19,8 +19,7 @@ def check_for_fun_metrics
     MARKDOWN
   end
 
-  workflow_files = edited.grep(%r{^\.github/workflows/.*\.ya?ml$})
-  if !workflow_changes.empty?
+  if edited.any? { |file| file.start_with?('.github/workflows/') && file.match?(/\.ya?ml$/) }
     message(<<~MARKDOWN)
       ### ⚙️ **Changes in workflow**
       Detected changes in **#{workflow_changes.length}** file(s) GitHub Actions. 
@@ -28,7 +27,7 @@ def check_for_fun_metrics
     MARKDOWN
   end
 
-  test_files = edited.grep(%r{^OrbitTests/})
+  if edited.any? { |file| file.start_with?('OrbitTests/') }
   if !test_files.empty?
     message(<<~MARKDOWN)
       ### 🧪 **Tests modified**
