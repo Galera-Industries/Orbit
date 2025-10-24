@@ -47,8 +47,6 @@ def check_for_fun_metrics
   if !test_files.empty?
     markdown(<<~MARKDOWN)
       ### 🧪 **Tests modified**
-      The following test file(s) were changed:
-      #{orbit_test_files.map { |f| "- `#{f}`" }.join("\n")}
       Thank you for keeping the tests up-to-date!
     MARKDOWN
   end
