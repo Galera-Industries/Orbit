@@ -1,0 +1,70 @@
+name: Test
+
+on: 
+  push:
+    branch: 
+      - '**'
+  pull_request:
+    branch:
+      - main
+      
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  test:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Check out for repository
+        uses: actions/checkout@v5
+
+      - name: Set up Xcode
+        run: |
+          sudo xcode-select -switch /Applications/Xcode_16.3.app
+          xcodebuild -version
+
+      - name: Cache Xcode derived data
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-xcode-deriveddata-${{ hashFiles('**/*.xcodeproj/project.pbxproj', '**/*.xcworkspace/contents.xcworkspacedata') }}
+          restore-keys: ${{ runner.os }}-xcode-deriveddata-
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Cache CocoaPods
+        if: hashFiles('**/Podfile.lock') != ''
+        uses: actions/cache@v4
+        with:
+          path: |
+            Pods
+            ~Library/Caches/CocoaPods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: ${{ runner.os }}-cocoapods-
+
+      - name: Install dependencies
+        run: bundle install    
+
+      - name: Test
+        run: |
+          bundle exec fastlane test
+     
+      - name: Publish test results
+        uses: dorny/test-reporter@v2
+        if: success() || failure()
+        with:
+          name: Test Results
+          path: 'fastlane/test_output/*.junit'
+          reporter: jest-junit
