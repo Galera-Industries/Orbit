@@ -121,10 +121,27 @@ final class ShellModel: ObservableObject {
     
     func paste(number: Int = 0) {
         if let item = registry.context.clipboardRepository.getByOrder(number) {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(item.displayText, forType: .string)
+            pasteItem(item)
             pasteSimulation()
+        }
+    }
+    
+    private func pasteItem(_ item: ClipboardItem) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        
+        switch item.type {
+        case .text:
+            if let string = String(data: item.content, encoding: .utf8) {
+                pasteboard.setString(string, forType: .string)
+            }
+        case .image:
+            pasteboard.setData(item.content, forType: .tiff)
+        case .fileURL:
+            if let paths = try? JSONDecoder().decode([String].self, from: item.content) {
+                let urls = paths.map { NSURL(fileURLWithPath: $0) }
+                pasteboard.writeObjects(urls)
+            }
         }
     }
     
