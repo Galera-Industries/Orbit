@@ -27,6 +27,32 @@ def check_for_fun_metrics
     MARKDOWN
   end
 
+  if additions > 200
+    markdown(<<~MARKDOWN)
+      ### **OMG WHAT A PR?**
+      You added **#{additions}** lines of code. You are a monster!
+    MARKDOWN
+  end  
+
+  workflow_files = edited.grep(%r{^\.github/workflows/.*\.ya?ml$})
+  if !workflow_changes.empty?
+    markdown(<<~MARKDOWN)
+      ### ⚙️ **Changes in workflow**
+      Detected changes in **#{workflow_changes.length}** file(s) GitHub Actions. 
+      Please, make sure, that changes is safety and had been tested.
+    MARKDOWN
+  end
+
+  test_files = edited.grep(%r{^OrbitTests/})
+  if !test_files.empty?
+    markdown(<<~MARKDOWN)
+      ### 🧪 **Tests modified**
+      The following test file(s) were changed:
+      #{orbit_test_files.map { |f| "- `#{f}`" }.join("\n")}
+      Thank you for keeping the tests up-to-date!
+    MARKDOWN
+  end
+
   weekday = Time.now.wday # 5 = Friday (0=Sunday, 1=Monday, ...)
   if weekday == 5
     markdown(<<~MARKDOWN)
