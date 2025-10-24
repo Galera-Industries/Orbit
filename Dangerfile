@@ -27,8 +27,8 @@ def check_for_fun_metrics
     MARKDOWN
   end
 
+
   if edited.any? { |file| file.start_with?('OrbitTests/') }
-  if !test_files.empty?
     message(<<~MARKDOWN)
       ### 🧪 **Tests modified**
       Thank you for keeping the tests up-to-date!
