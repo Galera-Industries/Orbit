@@ -50,6 +50,15 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
         }
     }
     
+    func getByOrder(_ byOrder: Int) -> ClipboardItem? {
+        firstLoad()
+        if let item = coreData.fetch(byOrder: byOrder) {
+            return mapFromCoreData(item)
+        } else {
+            return nil
+        }
+    }
+    
     /// удаляем все копирования
     func clear() {
         firstLoad()
@@ -97,6 +106,7 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
 protocol ClipboardRepositoryProtocol {
     func add(_ item: ClipboardItem)
     func getAll() -> [ClipboardItem]
+    func getByOrder(_ byOrder: Int) -> ClipboardItem?
     func search(_ query: String) -> [ClipboardItem]
     func clear()
     func load()

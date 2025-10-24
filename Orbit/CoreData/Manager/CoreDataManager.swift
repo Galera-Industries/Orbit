@@ -43,6 +43,14 @@ final class CoreDataManager: CoreDataProtocol {
         }
     }
     
+    func fetch(byOrder: Int) -> CDClipboardItem? {
+        let items = fetchAll()
+        if byOrder <= items.count {
+            return items[items.count - byOrder - 1]
+        }
+        return nil
+    }
+
     private func fetch(itemId: UUID) -> CDClipboardItem? {
         let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
         let request: NSFetchRequest<CDClipboardItem> = CDClipboardItem.fetchRequest()

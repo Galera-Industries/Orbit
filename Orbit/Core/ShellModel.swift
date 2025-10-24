@@ -7,6 +7,8 @@
 
 import Foundation
 import Combine
+import AppKit
+import Carbon
 internal import os
 
 // ResultItem переехал в Contracts.swift
@@ -115,5 +117,49 @@ final class ShellModel: ObservableObject {
         if alternative, let s = item.secondaryAction { s.run() } else { item.primaryAction.run() }
         state.history.insert(query, at: 0)
         eventBus.post(.itemExecuted(item))
+    }
+    
+    func paste(number: Int = 0) {
+        if let item = registry.context.clipboardRepository.getByOrder(number) {
+            pasteItem(item)
+            pasteSimulation()
+        }
+    }
+    
+    private func pasteItem(_ item: ClipboardItem) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        
+        switch item.type {
+        case .text:
+            if let string = String(data: item.content, encoding: .utf8) {
+                pasteboard.setString(string, forType: .string)
+            }
+        case .image:
+            pasteboard.setData(item.content, forType: .tiff)
+        case .fileURL:
+            if let paths = try? JSONDecoder().decode([String].self, from: item.content) {
+                let urls = paths.map { NSURL(fileURLWithPath: $0) }
+                pasteboard.writeObjects(urls)
+            }
+        }
+    }
+    
+    private func pasteSimulation() {
+        let src = CGEventSource(stateID: .combinedSessionState)
+        let cmdDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_Command), keyDown: true)
+        let vDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
+        let vUp = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
+        let cmdUp = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_Command), keyDown: false)
+        
+        cmdDown?.flags = .maskCommand
+        vDown?.flags = .maskCommand
+        
+        let loc = CGEventTapLocation.cghidEventTap
+
+        cmdDown?.post(tap: loc)
+        vDown?.post(tap: loc)
+        vUp?.post(tap: loc)
+        cmdUp?.post(tap: loc)
     }
 }
