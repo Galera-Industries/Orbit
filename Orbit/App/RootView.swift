@@ -33,6 +33,9 @@ struct RootView: View {
                         
                         if shell.currentMode == .clipboard {
                             FilterMenu(selection: $selectedFilter)
+                                .onChange(of: selectedFilter) { newFilter in
+                                    shell.switchFilter(filter: newFilter)
+                                }
                         }
                     }
                     .onChange(of: shell.query) { newQ in
@@ -40,9 +43,6 @@ struct RootView: View {
                         
                         shell.resetSelection()
                         shell.performSearch()
-                    }
-                    .onChange(of: selectedFilter) { newFilter in
-                        L.filter.info("filter changed -> \(newFilter)")
                     }
                     
                     PreviewHStack()

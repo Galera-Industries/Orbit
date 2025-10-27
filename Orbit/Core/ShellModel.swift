@@ -26,6 +26,7 @@ final class ShellModel: ObservableObject {
     @Published var query: String = ""
     @Published var selectedIndex: Int = 0
     @Published private(set) var results: [ResultItem] = []
+    private var allResults: [ResultItem] = []
     
     // Совместимость с текущим UI
     var filteredItems: [ResultItem] { results }
@@ -41,6 +42,7 @@ final class ShellModel: ObservableObject {
         dispatcher.resultsPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] items in
+                self?.allResults = items
                 self?.results = items
                 self?.eventBus.post(.resultsUpdated(items.count))
                 self?.resetSelection()
@@ -123,6 +125,18 @@ final class ShellModel: ObservableObject {
         if let item = registry.context.clipboardRepository.getByOrder(number) {
             pasteItem(item)
             pasteSimulation()
+        }
+    }
+    
+    func switchFilter(filter: Filter) {
+        if filter == .all {
+            results = allResults
+            return
+        }
+
+        results = allResults.filter { item in
+            guard let copyItem = item.source as? ClipboardItem else { return false }
+            return copyItem.type.rawValue == filter.rawValue
         }
     }
     
