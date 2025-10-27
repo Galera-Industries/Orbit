@@ -52,11 +52,8 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
     
     func getByOrder(_ byOrder: Int) -> ClipboardItem? {
         firstLoad()
-        if let item = coreData.fetch(byOrder: byOrder) {
-            return mapFromCoreData(item)
-        } else {
-            return nil
-        }
+        guard byOrder >= 0 && byOrder < cachedItems.count else { return nil }
+        return cachedItems[byOrder]
     }
     
     /// удаляем все копирования
