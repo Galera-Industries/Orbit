@@ -47,6 +47,21 @@ final class ClipboardRepositoryTests: XCTestCase {
         XCTAssertEqual(repository.getAll().count, 1)
     }
     
+    func testGetAll() {
+        let item1 = ClipboardItem(type: .text, content: "First copied text".data(using: .utf8) ?? Data())
+        let item2 = ClipboardItem(type: .text, content: "Second copied text".data(using: .utf8) ?? Data())
+        let item3 = ClipboardItem(type: .text, content: "Third copied text".data(using: .utf8) ?? Data())
+        
+        repository.add(item1)
+        repository.add(item2)
+        repository.add(item3)
+        
+        let result = repository.getAll()
+        
+        XCTAssertNotEqual(result, [])
+        XCTAssertEqual(result.count, 3)
+    }
+    
     func testGetByOrderSuccess() {
         let item1 = ClipboardItem(type: .text, content: "First copied text".data(using: .utf8) ?? Data())
         let item2 = ClipboardItem(type: .text, content: "Second copied text".data(using: .utf8) ?? Data())
