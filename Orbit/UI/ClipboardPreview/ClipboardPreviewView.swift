@@ -61,29 +61,93 @@ struct ClipboardPreviewView: View {
                 .font(.headline)
                 .padding(.bottom, 4)
             
-            infoRow(label: "Source", value: "Safari")
-            Divider().padding(.vertical, -5)
-            infoRow(label: "Content type", value: item.type.rawValue.capitalized)
-            Divider().padding(.vertical, -5)
-            infoRow(label: "Dimensions", value: "350×151")
-            Divider().padding(.vertical, -5)
-            infoRow(label: "Image size", value: "54 KB")
-            Divider().padding(.vertical, -5)
-            infoRow(label: "Created", value: "Today, 14:45")
-            
+            switch item.type {
+            case .text:
+                TextInfoContent(item: item)
+            case .image:
+                ImageInfoContent(item: item)
+            case .fileURL:
+                if let paths = try? JSONDecoder().decode([String].self, from: item.content), !paths.isEmpty {
+                    let urls = paths.map { URL(fileURLWithPath: $0) }
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 16) {
+                            ForEach(Array(urls.enumerated()), id: \.element) { index, url in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    FileInfoContent(item: item, url: url)
+                                }
+                                if index != urls.count - 1 {
+                                    Divider()
+                                        .opacity(0.3)
+                                        .padding(.vertical, 4)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
             Spacer(minLength: 40)
         }
         .font(.system(size: 14))
         .padding(.horizontal, 16)
     }
-    
-    func infoRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .foregroundColor(.secondary)
-                .frame(width: 120, alignment: .leading)
-            Spacer()
-            Text(value)
-        }
+}
+
+struct TextInfoContent: View {
+    let item: ClipboardItem
+    var body: some View {
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Content type", value: item.type.rawValue.capitalized)
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Copied", value: formatDate(item.timestamp))
     }
+}
+
+struct ImageInfoContent: View {
+    let item: ClipboardItem
+    var body: some View {
+        let size = item.content.count.formatted(.byteCount(style: .decimal))
+        let image = NSImage(data: item.content) ?? NSImage(size: .init(width: 100, height: 100))
+        let points = image.size
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Content type", value: item.type.rawValue.capitalized)
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Dimensions", value: "\(Int(points.height))x\(Int(points.width))")
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Image size", value: "\(size)")
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Copied", value: formatDate(item.timestamp))
+    }
+}
+
+struct FileInfoContent: View {
+    let item: ClipboardItem
+    let url: URL
+    var body: some View {
+        let size = item.content.count.formatted(.byteCount(style: .decimal))
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Content type", value: "File")
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Path", value: "\(url.prettyPathWithTilde)")
+        Divider().padding(.vertical, -5)
+        infoRow(label: "File size", value: "\(size)")
+        Divider().padding(.vertical, -5)
+        infoRow(label: "Copied", value: formatDate(item.timestamp))
+    }
+}
+
+func infoRow(label: String, value: String) -> some View {
+    HStack {
+        Text(label)
+            .foregroundColor(.secondary)
+            .frame(width: 120, alignment: .leading)
+        Spacer()
+        Text(value)
+    }
+}
+
+private func formatDate(_ date: Date) -> String {
+    let formatter = RelativeDateTimeFormatter()
+    formatter.locale = Locale(identifier: "ru_RU")
+    return formatter.localizedString(for: date, relativeTo: Date())
 }
