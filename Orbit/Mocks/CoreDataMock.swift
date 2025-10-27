@@ -12,7 +12,6 @@ final class CoreDataMock: CoreDataProtocol {
     var fetchAllResult: [CDClipboardItem] = []
     var createItemResult: [ClipboardItem] = []
     var deleteItemResult: [ClipboardItem] = []
-    var fetchByOrderResult: CDClipboardItem?
     
     init(storageCount: Int) {
         self.storageCount = storageCount
@@ -23,6 +22,4 @@ final class CoreDataMock: CoreDataProtocol {
     func deleteItem(_ item: ClipboardItem) { deleteItemResult.append(item) }
     
     func fetchAll() -> [CDClipboardItem] { fetchAllResult }
-    
-    func fetch(byOrder: Int) -> CDClipboardItem? { fetchByOrderResult }
 }

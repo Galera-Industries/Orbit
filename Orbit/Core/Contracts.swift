@@ -81,7 +81,7 @@ struct ResultItem: Identifiable {
     }
 }
 
-struct ClipboardItem: Identifiable, Codable {
+struct ClipboardItem: Identifiable, Codable, Equatable {
     let id: UUID
     let timestamp: Date
     let type: ClipboardType
