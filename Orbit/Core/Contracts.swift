@@ -118,9 +118,9 @@ struct ClipboardItem: Identifiable, Codable {
 }
 
 enum ClipboardType: String, Codable {
-    case text
-    case image
-    case fileURL
+    case text = "text"
+    case image = "image"
+    case fileURL = "fileURL"
 }
 
 // MARK: - Контекст для модулей (минимум)
@@ -154,4 +154,25 @@ struct EventModifiers: OptionSet {
     let rawValue: Int
     static let shift = EventModifiers(rawValue: 1 << 0)
 }
-
+// для фильтра по копированиям
+enum Filter: String, CaseIterable, Hashable {
+    case all = "all", text = "text", images = "image", files = "fileURL"
+    
+    var title: String {
+        switch self {
+        case .all: "All Types"
+        case .text: "Text Only"
+        case .images: "Images Only"
+        case .files: "Files Only"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .all: "tray.full"
+        case .text: "text.alignleft"
+        case .images: "photo"
+        case .files: "doc"
+        }
+    }
+}

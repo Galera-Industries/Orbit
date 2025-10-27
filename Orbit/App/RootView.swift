@@ -14,20 +14,30 @@ struct RootView: View {
     @EnvironmentObject var windowManager: WindowManager
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: KeyEventMonitor?
+    @State private var selectedFilter: Filter = .all // текущий фильтр в clipboard history
     
     var body: some View {
         ZStack {
             Color.clear
             GlassPanel {
                 VStack(spacing: 12) {
-                    TextField("Type to search…", text: $shell.query, onCommit: {
-                        shell.executeSelected()
-                    })
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 18, weight: .medium))
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.08)))
-                    .focused($isSearchFocused)
+                    HStack(spacing: 8) {
+                        TextField("Type to search…", text: $shell.query, onCommit: {
+                            shell.executeSelected()
+                        })
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 18, weight: .medium))
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.08)))
+                        .focused($isSearchFocused)
+                        
+                        if shell.currentMode == .clipboard {
+                            FilterMenu(selection: $selectedFilter)
+                                .onChange(of: selectedFilter) { newFilter in
+                                    shell.switchFilter(filter: newFilter)
+                                }
+                        }
+                    }
                     .onChange(of: shell.query) { newQ in
                         L.search.info("query changed -> '\(newQ, privacy: .public)'")
                         
@@ -83,7 +93,7 @@ struct PreviewHStack: View {
             .frame(width: 320)
             
             if let selectedItem = shell.selectedItem,
-               let clipItem = selectedItem.source as? ClipboardItem {
+               let clipItem = selectedItem.source as? ClipboardItem { // превью для Clipboard, для остальных можно свое делать
                 ClipboardPreviewView(item: clipItem)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
