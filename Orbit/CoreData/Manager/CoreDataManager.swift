@@ -82,7 +82,7 @@ final class CoreDataManager: CoreDataProtocol {
     private func repin() {
         let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
         let request: NSFetchRequest<CDClipboardItem> = CDClipboardItem.fetchRequest()
-        request.predicate = NSPredicate(format: "pinned != nil")
+        request.predicate = NSPredicate(format: "pinned != 0")
         guard let pinnedItems = try? context.fetch(request) else { return }
         for cdItem in pinnedItems {
             cdItem.pinned = cdItem.pinned + 1
