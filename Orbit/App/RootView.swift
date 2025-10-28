@@ -167,22 +167,8 @@ struct ButtonLabel: View {
     @Binding var hoverOnActions: Bool
     var body: some View {
         HStack(spacing: 4) {
-            Text("⌘")
-                .font(.system(size: 11, weight: .medium))
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.white.opacity(0.08))
-                )
-            Text("K")
-                .font(.system(size: 11, weight: .medium))
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.white.opacity(0.08))
-                )
+            Key(key: "⌘")
+            Key(key: "K")
             Text("Actions")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
