@@ -38,7 +38,7 @@ struct FilterMenu: View {
             )
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $isOpen, arrowEdge: .bottom) {
+        .popover(isPresented: $isOpen, attachmentAnchor: .point(.bottomLeading), arrowEdge: .bottom) {
             FilterListView(
                 selection: $selection,
                 search: $search,

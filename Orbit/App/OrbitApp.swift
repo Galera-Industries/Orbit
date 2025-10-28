@@ -43,7 +43,7 @@ struct OrbitApp: App {
           HotkeyBootstrap.registerDefaults(windowManager: windowManager, shell: shell)
 
           // AX-права (для эмуляции клавиш при необходимости)
-          _ = AccessibilityService.shared.ensureAuthorized(prompt: true)
+          _ = AccessibilityService.shared.ensureAuthorized(prompt: false)
 
           // На dev-сборках подстрахуем скрытие из Dock (на проде ставь LSUIElement=YES)
           DispatchQueue.main.async { NSApp.setActivationPolicy(.accessory) }

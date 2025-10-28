@@ -111,17 +111,41 @@ struct PreviewHStack: View {
 }
 
 struct BottomPanel: View {
+    @EnvironmentObject private var shell: ShellModel
     @State private var hoverOnActions = false
+    @State private var isOpen = false
+    
+    private func getActions() -> [Action] {
+        switch shell.currentMode {
+        case .launcher:
+            return [] // что душе угодно
+        case .clipboard:
+            return [.copyToClipboard, .pin, .deleteThis, .deleteAll]
+        case .tasks:
+            return [] // что душе угодно
+        case .pomodoro:
+            return [] // что душе угодно
+        }
+    }
+    
     var body: some View {
         HStack {
             Spacer()
             
             Button(action: {
-                //
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    isOpen.toggle()
+                }
             }) {
                 ButtonLabel(hoverOnActions: $hoverOnActions)
             }
             .buttonStyle(.plain)
+            .popover(isPresented: $isOpen, attachmentAnchor: .point(.topLeading), arrowEdge: .top) {
+                ActionsListView(actions: getActions()) {
+                    isOpen = false
+                }
+                .frame(maxWidth: 260, maxHeight: 200)
+            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 8)
