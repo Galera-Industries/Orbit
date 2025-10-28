@@ -11,4 +11,5 @@ protocol CoreDataProtocol {
     func createItem(_ item: ClipboardItem)
     func deleteItem(_ item: ClipboardItem)
     func fetchAll() -> [CDClipboardItem]
+    func deleteAll()
 }

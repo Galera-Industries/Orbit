@@ -77,6 +77,14 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
         isLoaded = true
     }
     
+    func delete(item: ClipboardItem) {
+        coreData.deleteItem(item)
+    }
+    
+    func deleteAll() {
+        coreData.deleteAll()
+    }
+    
     private func firstLoad() {
         guard !isLoaded else { return }
         load()
@@ -107,4 +115,6 @@ protocol ClipboardRepositoryProtocol {
     func search(_ query: String) -> [ClipboardItem]
     func clear()
     func load()
+    func delete(item: ClipboardItem)
+    func deleteAll()
 }

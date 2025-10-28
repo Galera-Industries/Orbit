@@ -22,4 +22,5 @@ final class CoreDataMock: CoreDataProtocol {
     func deleteItem(_ item: ClipboardItem) { deleteItemResult.append(item) }
     
     func fetchAll() -> [CDClipboardItem] { fetchAllResult }
+    func deleteAll() {}
 }
