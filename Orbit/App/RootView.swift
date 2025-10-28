@@ -17,7 +17,7 @@ struct RootView: View {
     @State private var selectedFilter: Filter = .all // текущий фильтр в clipboard history
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             Color.clear
             GlassPanel {
                 VStack(spacing: 12) {
@@ -47,10 +47,12 @@ struct RootView: View {
                     
                     PreviewHStack()
                     
+                    Spacer(minLength: 40)
                 }
                 .padding(16)
                 .frame(minWidth: 720, minHeight: 420)
             }
+            BottomPanel()
         }
         .onAppear {
             isSearchFocused = true
@@ -105,6 +107,79 @@ struct PreviewHStack: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+    }
+}
+
+struct BottomPanel: View {
+    @State private var hoverOnActions = false
+    var body: some View {
+        HStack {
+            Spacer()
+            
+            Button(action: {
+                //
+            }) {
+                ButtonLabel(hoverOnActions: $hoverOnActions)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.white.opacity(0.08))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+        .padding(.bottom, 0)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .animation(.easeInOut(duration: 0.25), value: hoverOnActions)
+    }
+}
+
+struct ButtonLabel: View {
+    @Binding var hoverOnActions: Bool
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("⌘")
+                .font(.system(size: 11, weight: .medium))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.white.opacity(0.08))
+                )
+            Text("K")
+                .font(.system(size: 11, weight: .medium))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.white.opacity(0.08))
+                )
+            Text("Actions")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(.white.opacity(0.06))
+        )
+        .onHover { inside in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                hoverOnActions = inside
+            }
+        }
+        .opacity(hoverOnActions ? 0.95 : 0.8)
+        .scaleEffect(hoverOnActions ? 1.02 : 1.0)
     }
 }
 
