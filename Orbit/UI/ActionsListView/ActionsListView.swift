@@ -25,11 +25,12 @@ struct ActionsListView: View {
                         }
                     }
                 }
+                .frame(minWidth: 240)
                 .padding(8)
             }
             .frame(maxWidth: .infinity, maxHeight: 280)
         }
-        .frame(maxWidth: 300)
+        .frame(minWidth: 250, maxWidth: 300)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(radius: 8)
