@@ -128,6 +128,7 @@ struct ModuleContext {
     var clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor() // var из-за того что внутри есть поле-колбек, которому нужно будет присвоить значение
     let coreData: CoreDataProtocol = CoreDataManager()
     lazy var clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository(coreData: coreData)
+    lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(clipboardRepository: clipboardRepository)
 }
 
 // MARK: - Протокол плагина (модуля)
