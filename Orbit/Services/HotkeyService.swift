@@ -146,9 +146,3 @@ enum CarbonMods {
     static let cmdShift: UInt32 = UInt32(cmdKey | shiftKey)
     static let controlShift: UInt32 = UInt32(controlKey | shiftKey)
 }
-
-
-// cmd + shift + P
-// control + X
-// control + shift + X
-// cmd + enter

@@ -3,6 +3,7 @@
     <entity name="CDClipboardItem" representedClassName="CDClipboardItem" syncable="YES">
         <attribute name="content" attributeType="Binary"/>
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="pinned" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="timestamp" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="type" attributeType="String"/>
     </entity>
