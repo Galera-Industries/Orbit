@@ -176,3 +176,29 @@ enum Filter: String, CaseIterable, Hashable {
         }
     }
 }
+
+// для опций доступных по кнопке Actions
+enum Action: String, CaseIterable, Hashable {
+    case copyToClipboard = "copyToClipboard"
+    case pin = "pin"
+    case deleteThis = "deleteThis"
+    case deleteAll  = "deleteAll"
+    
+    var title: String {
+        switch self {
+        case .copyToClipboard: "Copy To Clipboard"
+        case .pin: "Pin Entry"
+        case .deleteThis: "Delete This Entry"
+        case .deleteAll: "Delete All Entries"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .copyToClipboard: "list.clipboard.fill"
+        case .pin: "pin.fill"
+        case .deleteThis: "trash.fill"
+        case .deleteAll: "trash.fill"
+        }
+    }
+}
