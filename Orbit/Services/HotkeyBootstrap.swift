@@ -42,6 +42,13 @@ enum HotkeyBootstrap {
             L.hotkey.info("⌃⇧X -> Delete All Entries")
             shell.deleteAllFromClipboardHistory()
         }
+        
+        HotkeyService.shared.register(keyCode: KeyCode.k, carbonModifiers: CarbonMods.cmd) {
+            L.hotkey.info("⌘K -> Open Actions")
+            DispatchQueue.main.async {
+                shell.isActionsMenuOpen.toggle()
+            }
+        }
     }
     
     static func registerClipboardHotkeys(shell: ShellModel) -> [UInt32] {

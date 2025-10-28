@@ -27,6 +27,7 @@ final class ShellModel: ObservableObject {
     @Published var query: String = ""
     @Published var selectedIndex: Int = 0
     @Published private(set) var results: [ResultItem] = []
+    @Published var isActionsMenuOpen: Bool = false // открыто/закрыто actions menu
     private var allResults: [ResultItem] = []
     
     // Совместимость с текущим UI
