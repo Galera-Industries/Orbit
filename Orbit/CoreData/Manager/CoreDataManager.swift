@@ -59,6 +59,17 @@ final class CoreDataManager: CoreDataProtocol {
         }
         return nil
     }
+    
+    func updateItem(_ item: ClipboardItem) {
+        repin() // репин всех более старых элементов
+        guard let cditem = fetch(itemId: item.id) else { return }
+        if let pin = item.pinned {
+            cditem.pinned = 1
+        } else {
+            cditem.pinned = 0 // аналог nil
+        }
+        CoreDataStack.shared.saveContext(for: Models.clipboard.rawValue)
+    }
 
     private func fetch(itemId: UUID) -> CDClipboardItem? {
         let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
@@ -66,5 +77,15 @@ final class CoreDataManager: CoreDataProtocol {
         request.predicate = NSPredicate(format: "id == %@", itemId as CVarArg)
         request.fetchLimit = 1
         return try? context.fetch(request).first
+    }
+    
+    private func repin() {
+        let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
+        let request: NSFetchRequest<CDClipboardItem> = CDClipboardItem.fetchRequest()
+        request.predicate = NSPredicate(format: "pinned != nil")
+        guard let pinnedItems = try? context.fetch(request) else { return }
+        for cdItem in pinnedItems {
+            cdItem.pinned = cdItem.pinned + 1
+        }
     }
 }

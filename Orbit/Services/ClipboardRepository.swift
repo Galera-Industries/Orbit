@@ -85,6 +85,12 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
         coreData.deleteAll()
     }
     
+    func pin(item: ClipboardItem) {
+        if item.pinned == nil {
+            coreData.updateItem(item)
+        }
+    }
+    
     private func firstLoad() {
         guard !isLoaded else { return }
         load()
@@ -117,4 +123,5 @@ protocol ClipboardRepositoryProtocol {
     func load()
     func delete(item: ClipboardItem)
     func deleteAll()
+    func pin(item: ClipboardItem)
 }
