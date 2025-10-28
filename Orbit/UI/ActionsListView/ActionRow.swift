@@ -27,7 +27,7 @@ struct ActionRow: View {
                         Key(key: "⌘")
                         Key(key: "⏎")
                     case .pin:
-                        Key(key: "⌘")
+                        Key(key: "⌃")
                         Key(key: "⇧")
                         Key(key: "P")
                     case .deleteThis:

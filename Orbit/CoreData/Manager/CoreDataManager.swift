@@ -32,6 +32,15 @@ final class CoreDataManager: CoreDataProtocol {
         CoreDataStack.shared.saveContext(for: Models.clipboard.rawValue)
     }
     
+    func deleteAll() {
+        let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
+        let items = fetchAll()
+        for item in items {
+            context.delete(item)
+        }
+        CoreDataStack.shared.saveContext(for: Models.clipboard.rawValue)
+    }
+    
     func fetchAll() -> [CDClipboardItem] {
         let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
         let request: NSFetchRequest<CDClipboardItem> = CDClipboardItem.fetchRequest()

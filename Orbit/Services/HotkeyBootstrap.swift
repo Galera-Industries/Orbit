@@ -37,5 +37,27 @@ enum HotkeyBootstrap {
                 shell.paste(number: index)
             }
         }
+        
+        HotkeyService.shared.register(keyCode: KeyCode.x, carbonModifiers: CarbonMods.controlShift) {
+            L.hotkey.info("⌃⇧X -> Delete All Entries")
+            shell.deleteAllFromClipboardHistory()
+        }
+    }
+    
+    static func registerClipboardHotkeys(shell: ShellModel) -> [UInt32] {
+        let id1 = HotkeyService.shared.register(keyCode: KeyCode.p, carbonModifiers: CarbonMods.controlShift) {
+            L.clipboardActionsHotkey.info("⌃⇧P -> Pin Entry")
+            if let item = shell.selectedItem, let clipboardItem = item.source as? ClipboardItem {
+                shell.pin(item: clipboardItem)
+            }
+        }
+        
+        let id2 = HotkeyService.shared.register(keyCode: KeyCode.x, carbonModifiers: CarbonMods.control) {
+            L.clipboardActionsHotkey.info("⌃X -> Delete Entry")
+            if let item = shell.selectedItem, let clipboardItem =  item.source as? ClipboardItem {
+                shell.deleteItem(item: clipboardItem)
+            }
+        }
+        return [id1, id2]
     }
 }

@@ -15,6 +15,7 @@ struct RootView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var keyMonitor: KeyEventMonitor?
     @State private var selectedFilter: Filter = .all // текущий фильтр в clipboard history
+    @State private var ids: [UInt32] = [] // нужно для удержания id локального hotkey
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -72,7 +73,27 @@ struct RootView: View {
             L.window.info("focusSearchField notification")
             isSearchFocused = true
         }
-        .onDisappear { keyMonitor = nil }
+        .onDisappear {
+            keyMonitor = nil
+            unregisterHotkeys()
+        }
+        .onChange(of: shell.currentMode) { _ in
+            updateHotkeys()
+        }
+    }
+    
+    private func updateHotkeys() {
+        unregisterHotkeys()
+        if shell.currentMode == .clipboard {
+            ids = HotkeyBootstrap.registerClipboardHotkeys(shell: shell)
+        }
+    }
+
+    private func unregisterHotkeys() {
+        for id in ids {
+            HotkeyService.shared.unregister(id: id)
+        }
+        ids.removeAll()
     }
 }
 
@@ -118,9 +139,9 @@ struct BottomPanel: View {
     private func getActions() -> [Action] {
         switch shell.currentMode {
         case .launcher:
-            return [] // что душе угодно
+            return [.deleteAll] // что душе угодно
         case .clipboard:
-            return [.copyToClipboard, .pin, .deleteThis, .deleteAll]
+            return [.pin, .deleteThis, .deleteAll]
         case .tasks:
             return [] // что душе угодно
         case .pomodoro:

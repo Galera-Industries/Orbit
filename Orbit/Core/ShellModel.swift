@@ -18,6 +18,7 @@ final class ShellModel: ObservableObject {
     private let eventBus = EventBus()
     private let registry = ModuleRegistry()
     private lazy var dispatcher = SearchDispatcher(registry: registry)
+    private lazy var clipboardHotkeyManager = ClipboardHotkeyManager(clipboardRepository: registry.context.clipboardRepository)
     private var bag = Set<AnyCancellable>()
     
     private var state = AppState()
@@ -138,6 +139,26 @@ final class ShellModel: ObservableObject {
             guard let copyItem = item.source as? ClipboardItem else { return false }
             return copyItem.type.rawValue == filter.rawValue
         }
+    }
+    // Pin - метод который вызывается, когда пользователь жмет Action Pin на экране Clipboard History
+    func pin(item: ClipboardItem) {
+        clipboardHotkeyManager.pin(item: item)
+    }
+    
+    // DeleteItem - метод который вызывается, когда пользователь жмет Action Delete Entry на экране Clipboard History 
+    func deleteItem(item: ClipboardItem) {
+        clipboardHotkeyManager.delete(item: item)
+        if let index = allResults.firstIndex(where: {$0.source as? ClipboardItem == item }) {
+            allResults.remove(at: index)
+        }
+        results = allResults
+    }
+    
+    // Метод вызывается вне зависимости нажали мы через Action на экране Clipboard History или просто прожали
+    func deleteAllFromClipboardHistory() {
+        registry.context.clipboardRepository.deleteAll()
+        allResults.removeAll(where: {$0.source is ClipboardItem })
+        results = allResults
     }
     
     private func pasteItem(_ item: ClipboardItem) {
