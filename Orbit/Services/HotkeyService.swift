@@ -131,13 +131,23 @@ enum KeyCode {
     static let seven: UInt32 = UInt32(kVK_ANSI_7)
     static let eight: UInt32 = UInt32(kVK_ANSI_8)
     static let nine: UInt32 = UInt32(kVK_ANSI_9)
+    static let p: UInt32 = UInt32(kVK_ANSI_P)
+    static let x: UInt32 = UInt32(kVK_ANSI_X)
+    static let enter: UInt32 = UInt32(kVK_Return)
 }
 enum CarbonMods {
     static let cmd: UInt32 = UInt32(cmdKey)
     static let opt: UInt32 = UInt32(optionKey)
     static let shift: UInt32 = UInt32(shiftKey)
     static let control: UInt32 = UInt32(controlKey)
-    /// типа cmd и opt нажаты одновременно 
+    /// типа cmd и opt нажаты одновременно
     static let cmdOpt: UInt32 = UInt32(cmdKey | optionKey)
     static let cmdShift: UInt32 = UInt32(cmdKey | shiftKey)
+    static let controlShift: UInt32 = UInt32(controlKey | shiftKey)
 }
+
+
+// cmd + shift + P
+// control + X
+// control + shift + X
+// cmd + enter

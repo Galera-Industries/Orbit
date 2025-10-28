@@ -37,5 +37,21 @@ enum HotkeyBootstrap {
                 shell.paste(number: index)
             }
         }
+        
+        HotkeyService.shared.register(keyCode: KeyCode.enter, carbonModifiers: CarbonMods.cmd) {
+            L.hotkey.info("⌘⏎ -> Copy in Clipboard")
+        }
+        
+        HotkeyService.shared.register(keyCode: KeyCode.p, carbonModifiers: CarbonMods.cmdShift) {
+            L.hotkey.info("⌘⇧P -> Pin Entry")
+        }
+        
+        HotkeyService.shared.register(keyCode: KeyCode.x, carbonModifiers: CarbonMods.control) {
+            L.hotkey.info("⌃X -> Delete Entry")
+        }
+        
+        HotkeyService.shared.register(keyCode: KeyCode.x, carbonModifiers: CarbonMods.controlShift) {
+            L.hotkey.info("⌃X -> Delete All Entries")
+        }
     }
 }
