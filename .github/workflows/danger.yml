@@ -2,7 +2,7 @@ name: Danger
 
 on:
   pull_request:
-    types: [opened, reopened, edited, synchronize]
+    types: [opened, reopened, edited, synchronize, closed]
 
 permissions:
   contents: write
@@ -30,23 +30,10 @@ jobs:
           gem install bundler
           bundle install --jobs 4 --retry 3
 
-      - name: Restore Danger state cache
-        uses: actions/cache@v4
-        with:
-          path: .danger_state.json
-          key: danger-state
-
       - name: Run Danger
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           bundle exec danger
-          
-      - name: Save Danger state cache
-        if: always()
-        uses: actions/cache@v4
-        with:
-          path: .danger_state.json
-          key: danger-state
 
 

@@ -1,6 +1,18 @@
 require 'json'
+require 'fileutils'
 
-STATE_FILE = ".danger_state.json"
+STATE_FILE = ".github/danger/state.json"
+
+def ensure_state_file_exists
+  dir = File.dirname(STATE_FILE)
+  FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+  unless File.exist?(STATE_FILE)
+    initial_state = { "pushers" => [] }
+    File.write(STATE_FILE, JSON.pretty_generate(initial_state))
+  end
+end
+
+ensure_state_file_exists # создаст .github/danger/state.json если нет
 
 def load_state_file
   if File.exist?(STATE_FILE)
@@ -45,6 +57,31 @@ def increment_pr_count(cur_pr_pusher)
   return user["pr_count"]
 end
 
+def get_cur_pr_count(cur_pr_pusher)
+  state = load_state_file
+  pushers = state["pushers"]
+  user = pushers.find { |u| u["name"] == cur_pr_pusher }
+
+  if user
+    return user["pr_count"] + 1
+  else
+    return 1
+  end
+end
+
+def commit_state_file
+  system("git config user.email 'danger-bot@example.com'")
+  system("git config user.name 'danger-bot'")
+
+  if system("git add #{STATE_FILE} && git commit -m 'chore: update danger state [skip ci]' --no-verify")
+    branch = ENV['GITHUB_HEAD_REF'] || ENV['GITHUB_REF_NAME'] || 'main'
+    system("git push origin HEAD:#{branch}")
+    puts "✅ Committed and pushed #{STATE_FILE}"
+  else
+    puts "ℹ️ Nothing to commit"
+  end
+end
+
 def check_for_fun_metrics
   edited = git.modified_files + git.added_files
 
@@ -58,7 +95,7 @@ def check_for_fun_metrics
   pr_pusher = github.pr_json[:user][:login]
   pr_pusher_avatar = github.pr_json[:user][:avatar_url]
 
-  cur_pusher_pr_count = increment_pr_count(pr_pusher)
+  cur_pusher_pr_count = get_cur_pr_count(pr_pusher)
 
   message(<<~MARKDOWN)
     ### `#{pr_pusher}` you are so cooool 😎! 
@@ -93,7 +130,7 @@ def check_for_fun_metrics
 
   if commits > 0 && commits <= 5
     message(<<~MARKDOWN)
-      ### 🧹 **Tidy commit**
+      ### 🧹 **Small commits amount**
       Only **#{commits}** commits. Thanks for keeping it clean and review-friendly!
     MARKDOWN
   elsif commits > 15 
@@ -139,3 +176,12 @@ def check_for_fun_metrics
   end
 end
 check_for_fun_metrics
+
+pr_merged = github.pr_json[:merged]
+if pr_merged
+  pr_pusher = github.pr_json[:user][:login]
+  increment_pr_count(pr_pusher)
+  commit_state_file
+else
+  puts "PR не вмержен, счётчик не обновляем"
+end
