@@ -22,6 +22,10 @@ final class CoreDataMock: CoreDataProtocol {
     func deleteItem(_ item: ClipboardItem) { deleteItemResult.append(item) }
     
     func fetchAll() -> [CDClipboardItem] { fetchAllResult }
+    
     func deleteAll() {}
-    func updateItem(_ item: ClipboardItem) {}
+    
+    func fetchMaxPinned() -> Int32 { 1 }
+    
+    func pin(_ item: ClipboardItem, maxPin: Int32) {}
 }
