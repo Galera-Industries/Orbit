@@ -3,9 +3,19 @@ def check_for_fun_metrics
 
   additions = github.pr_json[:additions] || 0
   deletions = github.pr_json[:deletions] || 0
+  commits = github.pr_json[:commits] || 0
   
   files_changed = github.pr_json[:changed_files] || 0
   total_lines = deletions + additions
+
+  pr_pusher = github.pr_json[:user][:login]
+  pr_pusher_avatar = github.pr_json[:user][:avatar_url]
+
+  message(<<~MARKDOWN)
+    ### **#{pr_pusher}** you are so cooool 😎! 
+    Thanks for contributing in our project🤝
+    ![#{pr_pusher}'s avatar, to know you hero in face](#{pr_pusher_avatar}&s=64)
+  MARKDOWN
   
   if files_changed > 0 && files_changed <= 5
     message(<<~MARKDOWN)
@@ -17,16 +27,46 @@ def check_for_fun_metrics
       ### 🌱 **Tiny but mighty**
       Only **#{total_lines}** line(s) changed. Fast to review, faster to land! 🚀
     MARKDOWN
+  elsif total_lines > 1000
+    fail (<<~MARKDOWN)
+      ### ⛔️ **To many lines added**
+      You have to add at most 1000 lines in 1 pr
+    MARKDOWN
+  end
+
+  if files_changed > 20
+    fail (<<~MARKDOWN)
+      ### ⛔️ **To many files changed**
+      You have to change at most 20 files in 1 pr
+    MARKDOWN
+  end
+
+  if commits > 0 && commits <= 5
+    message(<<~MARKDOWN)
+      ### 🧹 **Tidy commit**
+      Only **#{commits}** commits. Thanks for keeping it clean and review-friendly!
+    MARKDOWN
+  elsif commits > 15 
+    message(<<~MARKDOWN)
+      ### ⚠️ **Monster commit**
+      IT IS **#{commits}** commits. Amazing dude!
+    MARKDOWN
+  end
+
+  if deletions > 500
+    fail (<<~MARKDOWN)
+      ### ⛔️ **To many lines removed**
+      Do you want to delete our project😔? You can remove at most 500 lines!
+    MARKDOWN
   end
 
   if edited.any? { |file| file.start_with?('.github/workflows/') && file.match?(/\.ya?ml$/) }
-    message(<<~MARKDOWN)
+    warn(<<~MARKDOWN)
       ### ⚙️ **Changes in workflow**
       Detected changes in GitHub Actions. 
       Please, make sure, that changes is safety and had been tested.
     MARKDOWN
   end
-
 
   if edited.any? { |file| file.start_with?('OrbitTests/') }
     message(<<~MARKDOWN)
@@ -40,6 +80,11 @@ def check_for_fun_metrics
     message(<<~MARKDOWN)
       ### 🙌 **Friday high-five**
       Thanks for pushing us across the finish line this week! 🙌
+    MARKDOWN
+  elsif weekday == 6 || weekday == 7
+    warn(<<~MARKDOWN)
+      ### ⚠️ **Try to relax during weekend**
+      It is so important to relax sometimes 😊
     MARKDOWN
   end
 end
