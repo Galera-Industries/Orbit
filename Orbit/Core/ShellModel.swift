@@ -16,9 +16,10 @@ internal import os
 final class ShellModel: ObservableObject {
     // State + Events
     private let eventBus = EventBus()
-    private let registry = ModuleRegistry()
+    private let context = ModuleContext()
+    private lazy var registry = ModuleRegistry(context: context)
     private lazy var dispatcher = SearchDispatcher(registry: registry)
-    private lazy var clipboardHotkeyManager = ClipboardHotkeyManager(clipboardRepository: registry.context.clipboardRepository)
+    private lazy var clipboardHotkeyManager = ClipboardHotkeyManager(context: context)
     private var bag = Set<AnyCancellable>()
     
     private var state = AppState()
@@ -32,18 +33,6 @@ final class ShellModel: ObservableObject {
     
     // Совместимость с текущим UI
     var filteredItems: [ResultItem] { results }
-    var sortedItems: [ClipboardItem] {
-        filteredItems
-            .compactMap {$0.source as? ClipboardItem}
-            .sorted {
-            switch ($0.pinned, $1.pinned) {
-            case let (p1?, p2?): return p1 < p2 // оба закреплены -> сортируем по приоритету
-            case (nil, nil): return false // оба не закреплены -> порядок не меняем
-            case (nil, _?): return false // незакреплённые идут ниже
-            case (_?, nil): return true // закреплённые выше
-            }
-        }
-    }
     
     init() {
         // Регистрация минимальных модулей (моки — чтобы было что показывать)
@@ -56,10 +45,12 @@ final class ShellModel: ObservableObject {
         dispatcher.resultsPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] items in
-                self?.allResults = items
-                self?.results = items
-                self?.eventBus.post(.resultsUpdated(items.count))
-                self?.resetSelection()
+                guard let self = self else { return }
+                let sortedItems = self.sortResults(in: items, where: ClipboardItem.self, using: clipboardSortRule) // для пинов
+                self.allResults = sortedItems
+                self.results = sortedItems
+                self.eventBus.post(.resultsUpdated(items.count))
+                self.resetSelection()
             }
             .store(in: &bag)
         
@@ -136,7 +127,7 @@ final class ShellModel: ObservableObject {
     }
     
     func paste(number: Int = 0) {
-        if let item = registry.context.clipboardRepository.getByOrder(number) {
+        if let item = context.clipboardRepository.getByOrder(number) {
             pasteItem(item)
             pasteSimulation()
         }
@@ -156,6 +147,21 @@ final class ShellModel: ObservableObject {
     // Pin - метод который вызывается, когда пользователь жмет Action Pin на экране Clipboard History
     func pin(item: ClipboardItem) {
         clipboardHotkeyManager.pin(item: item)
+        
+        allResults = allResults.map { result in
+            guard var source = result.source as? ClipboardItem else { return result }
+            if source.id == item.id {
+                var updated = result
+                source.pinned = Int(clipboardHotkeyManager.maxPinned)
+                updated.source = source
+                return updated
+            } else {
+                return result
+            }
+        }
+        
+        allResults = sortResults(in: allResults, where: ClipboardItem.self, using: clipboardSortRule)
+        results = allResults
     }
     
     // DeleteItem - метод который вызывается, когда пользователь жмет Action Delete Entry на экране Clipboard History 
@@ -169,7 +175,7 @@ final class ShellModel: ObservableObject {
     
     // Метод вызывается вне зависимости нажали мы через Action на экране Clipboard History или просто прожали
     func deleteAllFromClipboardHistory() {
-        registry.context.clipboardRepository.deleteAll()
+        context.clipboardRepository.deleteAll()
         allResults.removeAll(where: {$0.source is ClipboardItem })
         results = allResults
     }
@@ -209,5 +215,47 @@ final class ShellModel: ObservableObject {
         vDown?.post(tap: loc)
         vUp?.post(tap: loc)
         cmdUp?.post(tap: loc)
+    }
+    
+    private func sortResults<T>(
+        in results: [ResultItem],
+        where type: T.Type,
+        using rule: (T, T) -> Bool
+    ) -> [ResultItem] {
+        var typedItems: [ResultItem] = []
+        var indices: [Int] = []
+        
+        for (index, item) in results.enumerated() {
+            if item.source is T {
+                typedItems.append(item)
+                indices.append(index)
+            }
+        }
+        
+        let sorted = typedItems.sorted {
+            guard let a = $0.source as? T, let b = $1.source as? T else { return false }
+            return rule(a, b)
+        }
+        
+        var updated = results
+        for (sortedItem, idx) in zip(sorted, indices) {
+            updated[idx] = sortedItem
+        }
+        
+        return updated
+    }
+
+    
+    private func clipboardSortRule(_ lhs: ClipboardItem, _ rhs: ClipboardItem) -> Bool {
+        switch (lhs.pinned, rhs.pinned) {
+        case let (l?, r?): // оба закреплены
+            return l < r
+        case (nil, nil): // оба не закреплены
+            return lhs.timestamp > rhs.timestamp
+        case (_?, nil): // левый закреплён, правый нет
+            return true
+        case (nil, _?): // левый не закреплён, правый закреплён
+            return false
+        }
     }
 }
