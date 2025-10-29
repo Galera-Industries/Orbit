@@ -73,7 +73,7 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
             .sorted { $0.timestamp > $1.timestamp }
             .prefix(maxItems)
             .map { $0 }
-        
+        cachedItems.sort(by: sortRule)
         isLoaded = true
     }
     
@@ -89,10 +89,17 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
         cachedItems = []
     }
     
-    func pin(item: ClipboardItem) {
-        if item.pinned == nil {
-            coreData.updateItem(item)
+    func pin(item: ClipboardItem, maxPin: Int32) {
+        guard item.pinned == nil else { return }
+        coreData.pin(item, maxPin: maxPin)
+        if let index = cachedItems.firstIndex(where: { $0.id == item.id }) {
+            cachedItems[index].pinned = Int(maxPin) + 1
         }
+        cachedItems.sort(by: sortRule)
+    }
+    
+    func getMaxPin() -> Int32 {
+        return coreData.fetchMaxPinned()
     }
     
     private func firstLoad() {
@@ -113,8 +120,22 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
             id: id,
             timestamp: timestamp,
             type: type,
-            content: content
+            content: content,
+            pinned: cdItem.pinned == 0 ? nil : Int(cdItem.pinned)
         )
+    }
+    
+    private func sortRule(_ lhs: ClipboardItem, _ rhs: ClipboardItem) -> Bool {
+        switch (lhs.pinned, rhs.pinned) {
+        case let (l?, r?):
+            return l < r
+        case (nil, nil):
+            return lhs.timestamp > rhs.timestamp
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        }
     }
 }
 
@@ -127,5 +148,6 @@ protocol ClipboardRepositoryProtocol {
     func load()
     func delete(item: ClipboardItem)
     func deleteAll()
-    func pin(item: ClipboardItem)
+    func pin(item: ClipboardItem, maxPin: Int32)
+    func getMaxPin() -> Int32
 }
