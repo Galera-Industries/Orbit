@@ -11,6 +11,24 @@ struct ResultRow: View {
     let item: ResultItem
     let isSelected: Bool
     
+    private var isPinned: Bool {
+        (item.source as? ClipboardItem)?.pinned != nil
+    }
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.22)
+        } else if isPinned {
+            return Color.accentColor.opacity(0.08)
+        } else {
+            return .clear
+        }
+    }
+
+    private var borderColor: Color {
+        isPinned ? Color.accentColor.opacity(0.5) : .clear
+    }
+    
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
@@ -41,7 +59,11 @@ struct ResultRow: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.22) : .clear)
+                .fill(backgroundColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(borderColor, lineWidth: 2)
         )
     }
 }

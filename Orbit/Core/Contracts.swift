@@ -60,7 +60,7 @@ struct ResultItem: Identifiable {
     let primaryAction: ItemAction
     let secondaryAction: ItemAction?
     
-    let source: Any? // поле для данных
+    var source: Any? // поле для данных
     
     init(
         title: String,
@@ -126,11 +126,11 @@ enum ClipboardType: String, Codable {
 }
 
 // MARK: - Контекст для модулей (минимум)
-struct ModuleContext {
+final class ModuleContext {
     var clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor() // var из-за того что внутри есть поле-колбек, которому нужно будет присвоить значение
     let coreData: CoreDataProtocol = CoreDataManager()
     lazy var clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository(coreData: coreData)
-    lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(clipboardRepository: clipboardRepository)
+    lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(context: self)
 }
 
 // MARK: - Протокол плагина (модуля)
