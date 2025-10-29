@@ -163,4 +163,38 @@ final class ClipboardRepositoryTests: XCTestCase {
         XCTAssertEqual(coreData.deleteItemResult.count, 2)
         XCTAssertEqual(repository.getAll().count, 100)
     }
+    
+    func testPin() {
+        let item = ClipboardItem(type: .text, content: "Pin".data(using: .utf8) ?? Data())
+        
+        repository.add(item)
+        XCTAssertEqual(repository.getAll().count, 1)
+        XCTAssertEqual(repository.getAll().first, item)
+        XCTAssertEqual(coreData.createItemResult.count, 1)
+        XCTAssertEqual(coreData.createItemResult.first, item)
+        
+        let maxPin = repository.getMaxPin()
+        XCTAssertEqual(maxPin, 0)
+        
+        repository.pin(item: item, maxPin: maxPin)
+        XCTAssertEqual(coreData.pinnedItems.count, 1)
+        XCTAssertNotNil(coreData.pinnedItems.first?.pinned)
+    }
+    
+    func testUnpin() {
+        let item = ClipboardItem(type: .text, content: "Unpin".data(using: .utf8) ?? Data(), pinned: 1)
+        coreData.pinnedItems.append(item)
+        
+        repository.unpin(item: item)
+        XCTAssertNil(coreData.pinnedItems.first?.pinned)
+    }
+    
+    func testGetMaxPin() {
+        let item1 = ClipboardItem(type: .text, content: "Pin".data(using: .utf8) ?? Data(), pinned: 7)
+        let item2 = ClipboardItem(type: .text, content: "Pin".data(using: .utf8) ?? Data(), pinned: 10)
+        
+        coreData.pinnedItems = [item1, item2]
+        let max = repository.getMaxPin()
+        XCTAssertEqual(max, 10)
+    }
 }
