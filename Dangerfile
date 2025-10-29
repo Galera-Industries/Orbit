@@ -1,32 +1,33 @@
 require 'json'
 
-state_file = ".danger_state.json"
+STATE_FILE = ".danger_state.json"
 
 def load_state_file
-  if File.exists?(state_file)
-    JSON.parse(File.read(state_file))
-  else 
+  if File.exist?(STATE_FILE)
+    JSON.parse(File.read(STATE_FILE))
+  else
     { "pushers" => [] }
   end
 end
 
 def save_state_file(state)
-  File.write(state_file, JSON.pretty_generate(state))
+  File.write(STATE_FILE, JSON.pretty_generate(state))
 end
 
 def increment_pr_count(cur_pr_pusher)
   state = load_state_file
   pushers = state["pushers"]
-  user = pushers.find {|u| u["name"] == cur_pr_pusher}
+
+  user = pushers.find { |u| u["name"] == cur_pr_pusher }
+
   if user
     user["pr_count"] += 1
   else
-    user = { "name" => username, "pr_count" => 1 }
+    user = { "name" => cur_pr_pusher, "pr_count" => 1 }
     pushers << user
   end
 
   save_state_file(state)
-
   return user["pr_count"]
 end
 
