@@ -15,7 +15,7 @@ final class ClipboardHotkeyManager: ClipboardHotkeyProtocol {
     }
     
     func pin(item: ClipboardItem) {
-        // soon, много делать, т к нужно будет создавать новое поле pinned, опциональное, Int
+        clipboardRepository.pin(item: item)
     }
     
     func delete(item: ClipboardItem) {

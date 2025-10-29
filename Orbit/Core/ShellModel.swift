@@ -32,6 +32,18 @@ final class ShellModel: ObservableObject {
     
     // Совместимость с текущим UI
     var filteredItems: [ResultItem] { results }
+    var sortedItems: [ClipboardItem] {
+        filteredItems
+            .compactMap {$0.source as? ClipboardItem}
+            .sorted {
+            switch ($0.pinned, $1.pinned) {
+            case let (p1?, p2?): return p1 < p2 // оба закреплены -> сортируем по приоритету
+            case (nil, nil): return false // оба не закреплены -> порядок не меняем
+            case (nil, _?): return false // незакреплённые идут ниже
+            case (_?, nil): return true // закреплённые выше
+            }
+        }
+    }
     
     init() {
         // Регистрация минимальных модулей (моки — чтобы было что показывать)

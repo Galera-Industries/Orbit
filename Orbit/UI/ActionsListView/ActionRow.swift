@@ -8,12 +8,28 @@
 import SwiftUI
 
 struct ActionRow: View {
+    @EnvironmentObject private var shell: ShellModel
     let action: Action
     let onSelect: () -> Void
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: onSelect) {
+        Button(action: {
+            if action == .pin {
+                if let item = shell.selectedItem, let copyItem = item.source as? ClipboardItem {
+                    shell.pin(item: copyItem)
+                }
+            }
+            if action == .deleteThis {
+                if let item = shell.selectedItem, let copyItem = item.source as? ClipboardItem {
+                    shell.deleteItem(item: copyItem)
+                }
+            }
+            if action == .deleteAll {
+                shell.deleteAllFromClipboardHistory()
+            }
+            onSelect()
+        }) {
             HStack(spacing: 8) {
                 Image(systemName: action.icon)
                     .foregroundStyle(action == .deleteAll || action == .deleteThis ? .red : .primary)

@@ -79,10 +79,14 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
     
     func delete(item: ClipboardItem) {
         coreData.deleteItem(item)
+        if let index = cachedItems.firstIndex(where: {$0.content == item.content}) {
+            cachedItems.remove(at: index)
+        }
     }
     
     func deleteAll() {
         coreData.deleteAll()
+        cachedItems = []
     }
     
     func pin(item: ClipboardItem) {
