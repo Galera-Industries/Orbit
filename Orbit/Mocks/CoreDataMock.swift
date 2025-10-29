@@ -28,4 +28,6 @@ final class CoreDataMock: CoreDataProtocol {
     func fetchMaxPinned() -> Int32 { 1 }
     
     func pin(_ item: ClipboardItem, maxPin: Int32) {}
+    
+    func unpin(_ item: ClipboardItem) {}
 }

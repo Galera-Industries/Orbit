@@ -98,6 +98,15 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
         cachedItems.sort(by: sortRule)
     }
     
+    func unpin(item: ClipboardItem) {
+        guard item.pinned != nil else { return }
+        coreData.unpin(item)
+        if let index = cachedItems.firstIndex(where: { $0.id == item.id }) {
+            cachedItems[index].pinned = nil
+        }
+        cachedItems.sort(by: sortRule)
+    }
+    
     func getMaxPin() -> Int32 {
         return coreData.fetchMaxPinned()
     }
@@ -149,5 +158,7 @@ protocol ClipboardRepositoryProtocol {
     func delete(item: ClipboardItem)
     func deleteAll()
     func pin(item: ClipboardItem, maxPin: Int32)
+    func unpin(item: ClipboardItem)
     func getMaxPin() -> Int32
+    
 }

@@ -184,6 +184,7 @@ enum Filter: String, CaseIterable, Hashable {
 enum Action: String, CaseIterable, Hashable {
     case copyToClipboard = "copyToClipboard"
     case pin = "pin"
+    case unpin = "unpin"
     case deleteThis = "deleteThis"
     case deleteAll  = "deleteAll"
     
@@ -191,6 +192,7 @@ enum Action: String, CaseIterable, Hashable {
         switch self {
         case .copyToClipboard: "Copy To Clipboard"
         case .pin: "Pin Entry"
+        case .unpin: "Unpin Entry"
         case .deleteThis: "Delete This Entry"
         case .deleteAll: "Delete All Entries"
         }
@@ -200,6 +202,7 @@ enum Action: String, CaseIterable, Hashable {
         switch self {
         case .copyToClipboard: "list.clipboard.fill"
         case .pin: "pin.fill"
+        case .unpin: "pin.slash.fill"
         case .deleteThis: "trash.fill"
         case .deleteAll: "trash.fill"
         }

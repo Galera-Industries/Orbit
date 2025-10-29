@@ -53,6 +53,11 @@ struct ActionRow: View {
                         Key(key: "⌃")
                         Key(key: "⇧")
                         Key(key: "X")
+                    case .unpin:
+                        Key(key: "⌃")
+                        Key(key: "⌥")
+                        Key(key: "⇧")
+                        Key(key: "P")
                     }
                     
                 }
