@@ -93,7 +93,7 @@ def check_for_fun_metrics
 
   if commits > 0 && commits <= 5
     message(<<~MARKDOWN)
-      ### 🧹 **Tidy commit**
+      ### 🧹 **Small commits amount**
       Only **#{commits}** commits. Thanks for keeping it clean and review-friendly!
     MARKDOWN
   elsif commits > 15 
