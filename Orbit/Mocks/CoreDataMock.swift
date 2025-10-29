@@ -12,6 +12,7 @@ final class CoreDataMock: CoreDataProtocol {
     var fetchAllResult: [CDClipboardItem] = []
     var createItemResult: [ClipboardItem] = []
     var deleteItemResult: [ClipboardItem] = []
+    var pinnedItems: [ClipboardItem] = []
     
     init(storageCount: Int) {
         self.storageCount = storageCount
@@ -25,9 +26,19 @@ final class CoreDataMock: CoreDataProtocol {
     
     func deleteAll() {}
     
-    func fetchMaxPinned() -> Int32 { 1 }
+    func fetchMaxPinned() -> Int32 {
+        Int32(pinnedItems.map { $0.pinned ?? 0 }.max() ?? 0)
+    }
     
-    func pin(_ item: ClipboardItem, maxPin: Int32) {}
+    func pin(_ item: ClipboardItem, maxPin: Int32) {
+        var copy = item
+        copy.pinned = Int(maxPin) + 1
+        pinnedItems.append(copy)
+    }
     
-    func unpin(_ item: ClipboardItem) {}
+    func unpin(_ item: ClipboardItem) {
+        if let index = pinnedItems.firstIndex(where: { $0.id == item.id }) {
+            pinnedItems[index].pinned = nil
+        }
+    }
 }
