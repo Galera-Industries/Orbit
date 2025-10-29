@@ -1,3 +1,19 @@
+require 'json'
+
+state_file = ".danger_state.json"
+
+def load_state_file
+  if File.exists?(state_file)
+    JSON.parse(File.read(state_file))
+  else 
+    {}
+  end
+end
+
+def save_state_file(state)
+  File.write(state_file, JSON.pretty_generate(state))
+end
+
 def check_for_fun_metrics
   edited = git.modified_files + git.added_files
 
@@ -14,7 +30,7 @@ def check_for_fun_metrics
   message(<<~MARKDOWN)
     ### **#{pr_pusher}** you are so cooool 😎! 
     Thanks for contributing in our project🤝
-    ![#{pr_pusher}'s avatar, to know you hero in face](#{pr_pusher_avatar}&s=64)
+    ![#{pr_pusher}](#{pr_pusher_avatar}&s=64)
   MARKDOWN
   
   if files_changed > 0 && files_changed <= 5
