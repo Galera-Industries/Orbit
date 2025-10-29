@@ -1,85 +1,53 @@
 require 'json'
-require 'fileutils'
+require 'octokit'
 
-STATE_FILE = ".github/danger/state.json"
+$client = Octokit::Client.new(access_token: ENV['GIST_TOKEN'])
+$gist_id = ENV['DANGER_STATE_GIST_ID']
 
-def ensure_state_file_exists
-  dir = File.dirname(STATE_FILE)
-  FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
-  unless File.exist?(STATE_FILE)
-    initial_state = { "pushers" => [] }
-    File.write(STATE_FILE, JSON.pretty_generate(initial_state))
-  end
-end
-
-ensure_state_file_exists # создаст .github/danger/state.json если нет
-
-def load_state_file
-  if File.exist?(STATE_FILE)
-    JSON.parse(File.read(STATE_FILE))
-  else
+def load_state
+  begin
+    gist = $client.gist($gist_id)
+    content = gist.files["state.json"].content
+    JSON.parse(content)
+  rescue => e
+    puts "WARN: Не удалось загрузить состояние из Gist: #{e.message}"
     { "pushers" => [] }
   end
 end
 
-def save_state_file(state)
+def save_state(state)
+  content = JSON.pretty_generate(state)
   begin
-    content = JSON.pretty_generate(state)
-    bytes = File.write(STATE_FILE, content)
-    puts "DEBUG: Wrote #{bytes} bytes to #{STATE_FILE}"
-    read_back = File.read(STATE_FILE)
-    if read_back == content
-      puts "DEBUG: Read-back OK (content matches)."
-    else
-      puts "DEBUG: Read-back MISMATCH! length=#{read_back.length}"
-    end
-    return bytes
+    $client.edit_gist($gist_id, files: { "state.json" => { content: content } })
+    puts "DEBUG: Состояние успешно сохранено в Gist."
   rescue => e
-    puts "ERROR: Failed to write #{STATE_FILE}: #{e.class} - #{e.message}"
-    raise
+    puts "ERROR: Ошибка при сохранении состояния в Gist: #{e.message}"
   end
 end
 
-def increment_pr_count(cur_pr_pusher)
-  state = load_state_file
+def increment_pr_count(user_login)
+  state = load_state
   pushers = state["pushers"]
 
-  user = pushers.find { |u| u["name"] == cur_pr_pusher }
+  user = pushers.find { |u| u["name"] == user_login }
 
   if user
     user["pr_count"] += 1
   else
-    user = { "name" => cur_pr_pusher, "pr_count" => 1 }
+    user = { "name" => user_login, "pr_count" => 1 }
     pushers << user
   end
 
-  save_state_file(state)
-  return user["pr_count"]
+  save_state(state)
+  user["pr_count"]
 end
 
-def get_cur_pr_count(cur_pr_pusher)
-  state = load_state_file
+def get_cur_pr_count(user_login)
+  state = load_state
   pushers = state["pushers"]
-  user = pushers.find { |u| u["name"] == cur_pr_pusher }
+  user = pushers.find { |u| u["name"] == user_login }
 
-  if user
-    return user["pr_count"] + 1
-  else
-    return 1
-  end
-end
-
-def commit_state_file
-  system("git config user.email 'danger-bot@example.com'")
-  system("git config user.name 'danger-bot'")
-
-  if system("git add #{STATE_FILE} && git commit -m 'chore: update danger state [skip ci]' --no-verify")
-    branch = ENV['GITHUB_HEAD_REF'] || ENV['GITHUB_REF_NAME'] || 'main'
-    system("git push origin HEAD:#{branch}")
-    puts "✅ Committed and pushed #{STATE_FILE}"
-  else
-    puts "ℹ️ Nothing to commit"
-  end
+  user ? user["pr_count"] + 1 : 1
 end
 
 def check_for_fun_metrics
@@ -168,7 +136,7 @@ def check_for_fun_metrics
       ### 🙌 **Friday high-five**
       Thanks for pushing us across the finish line this week! 🙌
     MARKDOWN
-  elsif weekday == 6 || weekday == 7
+  elsif weekday == 6 || weekday == 0
     warn(<<~MARKDOWN)
       ### ⚠️ **Try to relax during weekend**
       It is so important to relax sometimes 😊
@@ -177,11 +145,11 @@ def check_for_fun_metrics
 end
 check_for_fun_metrics
 
-pr_merged = github.pr_json[:merged]
-if pr_merged
+
+if github.pr_json[:merged]
   pr_pusher = github.pr_json[:user][:login]
   increment_pr_count(pr_pusher)
-  commit_state_file
+  puts "✅ Счётчик PR успешно обновлён."
 else
-  puts "PR не вмержен, счётчик не обновляем"
+  puts "ℹ️ PR не вмержен — счётчик не обновляется."
 end
