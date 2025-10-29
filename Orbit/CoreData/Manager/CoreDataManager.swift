@@ -66,6 +66,12 @@ final class CoreDataManager: CoreDataProtocol {
         CoreDataStack.shared.saveContext(for: Models.clipboard.rawValue)
     }
     
+    func unpin(_ item: ClipboardItem) {
+        guard let cditem = fetch(itemId: item.id) else { return }
+        cditem.pinned = 0
+        CoreDataStack.shared.saveContext(for: Models.clipboard.rawValue)
+    }
+    
     func fetchMaxPinned() -> Int32 {
         let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
         let request: NSFetchRequest<NSDictionary> = NSFetchRequest(entityName: "CDClipboardItem")

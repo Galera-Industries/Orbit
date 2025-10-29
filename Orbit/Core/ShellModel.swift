@@ -164,6 +164,25 @@ final class ShellModel: ObservableObject {
         results = allResults
     }
     
+    func unpin(item: ClipboardItem) {
+        clipboardHotkeyManager.unpin(item: item)
+        
+        allResults = allResults.map { result in
+            guard var source = result.source as? ClipboardItem else { return result }
+            if source.id == item.id {
+                var updated = result
+                source.pinned = nil // unpin
+                updated.source = source
+                return updated
+            } else {
+                return result
+            }
+        }
+        
+        allResults = sortResults(in: allResults, where: ClipboardItem.self, using: clipboardSortRule)
+        results = allResults
+    }
+    
     // DeleteItem - метод который вызывается, когда пользователь жмет Action Delete Entry на экране Clipboard History 
     func deleteItem(item: ClipboardItem) {
         clipboardHotkeyManager.delete(item: item)

@@ -21,6 +21,10 @@ final class ClipboardHotkeyManager: ClipboardHotkeyProtocol {
         maxPinned += 1
     }
     
+    func unpin(item: ClipboardItem) {
+        clipboardRepository.unpin(item: item)
+    }
+    
     func delete(item: ClipboardItem) {
         clipboardRepository.delete(item: item)
     }
@@ -28,5 +32,6 @@ final class ClipboardHotkeyManager: ClipboardHotkeyProtocol {
 
 protocol ClipboardHotkeyProtocol {
     func pin(item: ClipboardItem)
+    func unpin(item: ClipboardItem)
     func delete(item: ClipboardItem)
 }

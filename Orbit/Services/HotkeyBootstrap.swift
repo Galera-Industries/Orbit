@@ -65,6 +65,13 @@ enum HotkeyBootstrap {
                 shell.deleteItem(item: clipboardItem)
             }
         }
-        return [id1, id2]
+        
+        let id3 = HotkeyService.shared.register(keyCode: KeyCode.p, carbonModifiers: CarbonMods.optionControlShift) {
+            L.clipboardActionsHotkey.info("⌃⌥⇧P -> Unpin Entry")
+            if let item = shell.selectedItem, let clipboardItem =  item.source as? ClipboardItem {
+                shell.unpin(item: clipboardItem)
+            }
+        }
+        return [id1, id2, id3]
     }
 }
