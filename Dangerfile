@@ -11,7 +11,21 @@ def load_state_file
 end
 
 def save_state_file(state)
-  File.write(STATE_FILE, JSON.pretty_generate(state))
+  begin
+    content = JSON.pretty_generate(state)
+    bytes = File.write(STATE_FILE, content)
+    puts "DEBUG: Wrote #{bytes} bytes to #{STATE_FILE}"
+    read_back = File.read(STATE_FILE)
+    if read_back == content
+      puts "DEBUG: Read-back OK (content matches)."
+    else
+      puts "DEBUG: Read-back MISMATCH! length=#{read_back.length}"
+    end
+    return bytes
+  rescue => e
+    puts "ERROR: Failed to write #{STATE_FILE}: #{e.class} - #{e.message}"
+    raise
+  end
 end
 
 def increment_pr_count(cur_pr_pusher)
@@ -47,9 +61,9 @@ def check_for_fun_metrics
   cur_pusher_pr_count = increment_pr_count(pr_pusher)
 
   message(<<~MARKDOWN)
-    ### **#{pr_pusher}** you are so cooool 😎! 
+    ### `#{pr_pusher}` you are so cooool 😎! 
     ![#{pr_pusher}](#{pr_pusher_avatar}&s=64)
-    It's your **#{cur_pusher_pr_count}** PR!
+    It's your **#{cur_pusher_pr_count} PR!**
     Thanks for contributing in our project🤝
   MARKDOWN
   
