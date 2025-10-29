@@ -6,12 +6,28 @@ def load_state_file
   if File.exists?(state_file)
     JSON.parse(File.read(state_file))
   else 
-    {}
+    { "pushers" => [] }
   end
 end
 
 def save_state_file(state)
   File.write(state_file, JSON.pretty_generate(state))
+end
+
+def increment_pr_count(cur_pr_pusher)
+  state = load_state_file
+  pushers = state["pushers"]
+  user = pushers.find {|u| u["name"] == cur_pr_pusher}
+  if user
+    user["pr_count"] += 1
+  else
+    user = { "name" => username, "pr_count" => 1 }
+    pushers << user
+  end
+
+  save_state_file(state)
+
+  return user["pr_count"]
 end
 
 def check_for_fun_metrics
@@ -27,10 +43,13 @@ def check_for_fun_metrics
   pr_pusher = github.pr_json[:user][:login]
   pr_pusher_avatar = github.pr_json[:user][:avatar_url]
 
+  cur_pusher_pr_count = increment_pr_count(pr_pusher)
+
   message(<<~MARKDOWN)
     ### **#{pr_pusher}** you are so cooool 😎! 
-    Thanks for contributing in our project🤝
     ![#{pr_pusher}](#{pr_pusher_avatar}&s=64)
+    It's your **#{cur_pusher_pr_count}** PR!
+    Thanks for contributing in our project🤝
   MARKDOWN
   
   if files_changed > 0 && files_changed <= 5
