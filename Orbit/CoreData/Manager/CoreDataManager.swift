@@ -59,12 +59,46 @@ final class CoreDataManager: CoreDataProtocol {
         }
         return nil
     }
-
+    
+    func pin(_ item: ClipboardItem, maxPin: Int32) {
+        guard let cditem = fetch(itemId: item.id) else { return }
+        cditem.pinned = maxPin + 1
+        CoreDataStack.shared.saveContext(for: Models.clipboard.rawValue)
+    }
+    
+    func fetchMaxPinned() -> Int32 {
+        let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
+        let request: NSFetchRequest<NSDictionary> = NSFetchRequest(entityName: "CDClipboardItem")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = [
+            NSExpressionDescription().apply {
+                $0.name = "maxPinned"
+                $0.expression = NSExpression(forFunction: "max:", arguments: [NSExpression(forKeyPath: "pinned")])
+                $0.expressionResultType = .integer32AttributeType
+            }
+        ]
+        if
+            let results = try? context.fetch(request),
+            let dict = results.first as? [String: Any],
+            let maxPinned = dict["maxPinned"] as? Int32
+        {
+            return maxPinned
+        }
+        return 0
+    }
+    
     private func fetch(itemId: UUID) -> CDClipboardItem? {
         let context = CoreDataStack.shared.viewContext(for: Models.clipboard.rawValue)
         let request: NSFetchRequest<CDClipboardItem> = CDClipboardItem.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", itemId as CVarArg)
         request.fetchLimit = 1
         return try? context.fetch(request).first
+    }
+}
+
+extension NSExpressionDescription {
+    func apply(_ block: (NSExpressionDescription) -> Void) -> NSExpressionDescription {
+        block(self)
+        return self
     }
 }

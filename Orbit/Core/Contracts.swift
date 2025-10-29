@@ -60,7 +60,7 @@ struct ResultItem: Identifiable {
     let primaryAction: ItemAction
     let secondaryAction: ItemAction?
     
-    let source: Any? // поле для данных
+    var source: Any? // поле для данных
     
     init(
         title: String,
@@ -86,12 +86,14 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     let timestamp: Date
     let type: ClipboardType
     let content: Data
+    var pinned: Int? // от 1 до 100, место на котором запинено
     
-    init(id: UUID = UUID(), timestamp: Date = Date(), type: ClipboardType, content: Data) {
+    init(id: UUID = UUID(), timestamp: Date = Date(), type: ClipboardType, content: Data, pinned: Int? = nil) {
         self.id = id
         self.timestamp = timestamp
         self.type = type
         self.content = content
+        self.pinned = pinned
     }
     
     var displayText: String {
@@ -124,11 +126,11 @@ enum ClipboardType: String, Codable {
 }
 
 // MARK: - Контекст для модулей (минимум)
-struct ModuleContext {
+final class ModuleContext {
     var clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor() // var из-за того что внутри есть поле-колбек, которому нужно будет присвоить значение
     let coreData: CoreDataProtocol = CoreDataManager()
     lazy var clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository(coreData: coreData)
-    lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(clipboardRepository: clipboardRepository)
+    lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(context: self)
 }
 
 // MARK: - Протокол плагина (модуля)

@@ -155,15 +155,15 @@ struct BottomPanel: View {
             
             Button(action: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    isOpen.toggle()
+                    shell.isActionsMenuOpen.toggle()
                 }
             }) {
                 ButtonLabel(hoverOnActions: $hoverOnActions)
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $isOpen, attachmentAnchor: .point(.topLeading), arrowEdge: .top) {
+            .popover(isPresented: $shell.isActionsMenuOpen, attachmentAnchor: .point(.topLeading), arrowEdge: .top) {
                 ActionsListView(actions: getActions()) {
-                    isOpen = false
+                    shell.isActionsMenuOpen = false
                 }
                 .frame(maxWidth: 260, maxHeight: 200)
             }

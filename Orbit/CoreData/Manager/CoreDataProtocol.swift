@@ -12,4 +12,6 @@ protocol CoreDataProtocol {
     func deleteItem(_ item: ClipboardItem)
     func fetchAll() -> [CDClipboardItem]
     func deleteAll()
+    func fetchMaxPinned() -> Int32
+    func pin(_ item: ClipboardItem, maxPin: Int32)
 }

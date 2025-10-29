@@ -9,13 +9,16 @@ import Foundation
 
 final class ClipboardHotkeyManager: ClipboardHotkeyProtocol {
     private let clipboardRepository: ClipboardRepositoryProtocol
+    var maxPinned: Int32 = 0
     
-    init(clipboardRepository: ClipboardRepositoryProtocol) {
-        self.clipboardRepository = clipboardRepository
+    init(context: ModuleContext) {
+        self.clipboardRepository = context.clipboardRepository
+        maxPinned = clipboardRepository.getMaxPin()
     }
     
     func pin(item: ClipboardItem) {
-        // soon, много делать, т к нужно будет создавать новое поле pinned, опциональное, Int
+        clipboardRepository.pin(item: item, maxPin: maxPinned)
+        maxPinned += 1
     }
     
     func delete(item: ClipboardItem) {
