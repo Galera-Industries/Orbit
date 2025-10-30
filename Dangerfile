@@ -4,6 +4,7 @@ require 'octokit'
 $client = Octokit::Client.new(access_token: ENV['GIST_TOKEN'])
 $gist_id = ENV['DANGER_STATE_GIST_ID']
 $today = Date.today.to_s
+$commits = github.pr_json[:commits]
 
 def load_state
   begin
@@ -34,8 +35,7 @@ def increment_pr_count(user_login)
   if user
     user["pr_count"] += 1
   else
-    commits = github.pr_json[:commits]
-    user = { "name" => user_login, "pr_count" => 1, "commits_count" => commits, "days_in_row" => 1, "last_day_commit" => $today}
+    user = { "name" => user_login, "pr_count" => 1, "commits_count" => $commits, "days_in_row" => 1, "last_day_commit" => $today}
     pushers << user
   end
 
@@ -56,11 +56,10 @@ def update_commits_count(user_login)
   pushers = state["pushers"]
   user = pushers.find { |u| u["name"] == user_login }
 
-  commits = github.pr_json[:commits]
   if user 
-    user["commits_count"] += commits
+    user["commits_count"] += $commits
   else 
-    user = { "name" => user_login, "pr_count" => 1, "commits_count" => commits, "days_in_row" => 1, "last_day_commit" => $today}
+    user = { "name" => user_login, "pr_count" => 1, "commits_count" => $commits, "days_in_row" => 1, "last_day_commit" => $today}
     pushers << user
   end  
   save_state(state)
@@ -71,8 +70,7 @@ def get_cur_commits_count(user_login)
   pushers = state["pushers"]
   user = pushers.find { |u| u["name"] == user_login }
 
-  commits = github.pr_json[:commits]
-  user ? user["commits_count"] + commits : commits
+  user ? user["commits_count"] + $commits : $commits
 end
 
 def update_days_in_row_count(user_login)
@@ -90,8 +88,7 @@ def update_days_in_row_count(user_login)
     end
     user["last_day_commit"] = $today
   else
-    commits = github.pr_json[:commits]
-    user = { "name" => user_login, "pr_count" => 1, "commits_count" => commits, "days_in_row" => 1, "last_day_commit" => $today}
+    user = { "name" => user_login, "pr_count" => 1, "commits_count" => $commits, "days_in_row" => 1, "last_day_commit" => $today}
     pushers << user
   end
   save_state(state)
