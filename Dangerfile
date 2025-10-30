@@ -3,6 +3,7 @@ require 'octokit'
 
 $client = Octokit::Client.new(access_token: ENV['GIST_TOKEN'])
 $gist_id = ENV['DANGER_STATE_GIST_ID']
+$today = Date.today.to_s
 
 def load_state
   begin
@@ -28,13 +29,13 @@ end
 def increment_pr_count(user_login)
   state = load_state
   pushers = state["pushers"]
-
   user = pushers.find { |u| u["name"] == user_login }
 
   if user
     user["pr_count"] += 1
   else
-    user = { "name" => user_login, "pr_count" => 1 }
+    commits = github.pr_json[:commits]
+    user = { "name" => user_login, "pr_count" => 1, "commits_count" => commits, "days_in_row" => 1, "last_day_commit" => $today}
     pushers << user
   end
 
@@ -50,6 +51,61 @@ def get_cur_pr_count(user_login)
   user ? user["pr_count"] + 1 : 1
 end
 
+def update_commits_count(user_login)
+  state = load_state
+  pushers = state["pushers"]
+  user = pushers.find { |u| u["name"] == user_login }
+
+  commits = github.pr_json[:commits]
+  if user 
+    user["commits_count"] += commits
+  else 
+    user = { "name" => user_login, "pr_count" => 1, "commits_count" => commits, "days_in_row" => 1, "last_day_commit" => $today}
+    pushers << user
+  end  
+  save_state(state)
+end
+
+def get_cur_commits_count(user_login)
+  state = load_state
+  pushers = state["pushers"]
+  user = pushers.find { |u| u["name"] == user_login }
+
+  commits = github.pr_json[:commits]
+  user ? user["commits_count"] + commits : commits
+end
+
+def update_days_in_row_count(user_login)
+  state = load_state
+  pushers = state["pushers"]
+  user = pushers.find { |u| u["name"] == user_login }
+
+  if user
+    last_day_commit = user["last_day_commit"]
+    diff = Date.parse($today) - Date.parse(last_day_commit)
+    if diff == 1
+      user["days_in_row"] += 1
+    elsif diff > 1
+      user["days_in_row"] = 1
+    end
+    user["last_day_commit"] = $today
+  else
+    commits = github.pr_json[:commits]
+    user = { "name" => user_login, "pr_count" => 1, "commits_count" => commits, "days_in_row" => 1, "last_day_commit" => $today}
+    pushers << user
+  end
+  save_state(state)
+end
+
+def get_days_in_row_count(user_login)
+  state = load_state
+  pushers = state["pushers"]
+  user = pushers.find { |u| u["name"] == user_login }
+  
+  user ? user["days_in_row"] + 1 : 1
+end
+
+
 def check_for_fun_metrics
   edited = git.modified_files + git.added_files
 
@@ -64,6 +120,8 @@ def check_for_fun_metrics
   pr_pusher_avatar = github.pr_json[:user][:avatar_url]
 
   cur_pusher_pr_count = get_cur_pr_count(pr_pusher)
+  cur_pusher_commits_count = get_cur_commits_count(pr_pusher)
+  cur_pusher_days_in_row = get_days_in_row_count(pr_pusher)
 
   message(<<~MARKDOWN)
     ### `#{pr_pusher}` you are so cooool 😎! 
@@ -149,7 +207,9 @@ check_for_fun_metrics
 if github.pr_json[:merged]
   pr_pusher = github.pr_json[:user][:login]
   increment_pr_count(pr_pusher)
-  puts "✅ Счётчик PR успешно обновлён."
+  update_days_in_row_count(pr_pusher)
+  update_commits_count(pr_pusher)
+  puts "✅ Данные пользователя успешно обновлены."
 else
-  puts "ℹ️ PR не вмержен — счётчик не обновляется."
+  puts "PR не вмержен — счётчик не обновляется."
 end
