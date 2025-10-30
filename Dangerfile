@@ -99,7 +99,19 @@ def get_days_in_row_count(user_login)
   pushers = state["pushers"]
   user = pushers.find { |u| u["name"] == user_login }
 
-  user ? user["days_in_row"] + 1 : 1
+  if user
+    last_day_commit = user["last_day_commit"]
+    diff = Date.parse($today) - Date.parse(last_day_commit)
+    if diff == 1
+      return user["days_in_row"] + 1
+    elsif diff == 0
+      return user["days_in_row"]
+    elsif diff > 1
+      return 1
+    end
+  else
+    return 1 
+  end
 end
 
 
