@@ -101,7 +101,7 @@ def get_days_in_row_count(user_login)
   state = load_state
   pushers = state["pushers"]
   user = pushers.find { |u| u["name"] == user_login }
-  
+
   user ? user["days_in_row"] + 1 : 1
 end
 
@@ -129,6 +129,16 @@ def check_for_fun_metrics
     It's your **#{cur_pusher_pr_count} PR!**
     Thanks for contributing in our project🤝
   MARKDOWN
+
+  message = <<~MARKDOWN
+    <details>
+      <summary>Show statistics</summary>
+      - **#{cur_pusher_commits_count}** total commits in project
+      - **#{cur_pusher_days_in_row}** day(s) in row
+    </details>
+  MARKDOWN
+  
+  message(message)
   
   if files_changed > 0 && files_changed <= 5
     message(<<~MARKDOWN)
