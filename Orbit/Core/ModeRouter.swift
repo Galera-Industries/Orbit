@@ -29,7 +29,7 @@ final class ModeRouter {
             mode = .pomodoro
             body = String(trimmed.dropFirst("pomo".count)).trimmingCharacters(in: .whitespaces)
         } else if trimmed.isEmpty {
-            mode = lastMode
+            mode = lastMode == .tasks ? .launcher : lastMode
             body = ""
         }
         

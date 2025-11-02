@@ -8,6 +8,27 @@
 import Foundation
 
 final class CoreDataMock: CoreDataProtocol {
+    func createTask(_ task: Task) {
+        print("TODO")
+    }
+    
+    func deleteTask(_ task: Task) {
+        print("TODO")
+    }
+    
+    func fetchAllTasks() -> [CDTask] {
+        print("TODO")
+        return []
+    }
+    
+    func deleteAllTasks() {
+        print("TODO")
+    }
+    
+    func updateTask(_ task: Task) {
+        print("TODO")
+    }
+    
     var storageCount: Int
     var fetchAllResult: [CDClipboardItem] = []
     var createItemResult: [ClipboardItem] = []

@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 // MARK: - Режимы
 enum AppMode: String, CaseIterable {
@@ -47,6 +48,7 @@ struct ItemAction {
 enum Outcome {
     case done
     case closeWindow
+    case clearQuery
     case showError(String)
 }
 
@@ -125,11 +127,68 @@ enum ClipboardType: String, Codable {
     case fileURL = "fileURL"
 }
 
+// MARK: - Task Model
+struct Task: Identifiable, Equatable {
+    let id: UUID
+    var title: String
+    let createdAt: Date
+    var tags: [String]
+    var priority: TaskPriority?
+    var dueDate: Date?
+    var completed: Bool
+    
+    init(
+        id: UUID = UUID(),
+        title: String,
+        createdAt: Date = Date(),
+        tags: [String] = [],
+        priority: TaskPriority? = nil,
+        dueDate: Date? = nil,
+        completed: Bool = false
+    ) {
+        self.id = id
+        self.title = title
+        self.createdAt = createdAt
+        self.tags = tags
+        self.priority = priority
+        self.dueDate = dueDate
+        self.completed = completed
+    }
+    
+    static func from(parsedQuery: ParsedQuery) -> Task {
+        var dueDate: Date?
+        
+        if let dueToken = parsedQuery.due {
+            let calendar = Calendar.current
+            switch dueToken {
+            case .today:
+                dueDate = calendar.startOfDay(for: Date())
+            case .tomorrow:
+                dueDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))
+            case .nextWeek:
+                dueDate = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: Date()))
+            case .date(let date):
+                dueDate = calendar.startOfDay(for: date)
+            }
+        }
+        
+        return Task(
+            title: parsedQuery.text.isEmpty ? "Untitled Task" : parsedQuery.text,
+            tags: parsedQuery.tags,
+            priority: parsedQuery.priority,
+            dueDate: dueDate
+        )
+    }
+}
+
 // MARK: - Контекст для модулей (минимум)
-final class ModuleContext {
+final class ModuleContext: ObservableObject {
+    let objectWillChange = ObservableObjectPublisher()
+    
     var clipboardMonitor: ClipboardMonitorProtocol = ClipboardMonitor() // var из-за того что внутри есть поле-колбек, которому нужно будет присвоить значение
     let coreData: CoreDataProtocol = CoreDataManager()
     lazy var clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository(coreData: coreData)
+    lazy var tasksRepository: TasksRepositoryProtocol = TasksRepository(coreData: coreData)
     lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(context: self)
 }
 

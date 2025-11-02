@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import Combine
 internal import os
 
 struct RootView: View {
@@ -16,6 +17,7 @@ struct RootView: View {
     @State private var keyMonitor: KeyEventMonitor?
     @State private var selectedFilter: Filter = .all // текущий фильтр в clipboard history
     @State private var ids: [UInt32] = [] // нужно для удержания id локального hotkey
+    @State private var showCreateTaskView = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -80,6 +82,14 @@ struct RootView: View {
         .onChange(of: shell.currentMode) { _ in
             updateHotkeys()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showCreateTaskView)) { _ in
+            showCreateTaskView = true
+        }
+        .sheet(isPresented: $showCreateTaskView) {
+            CreateTaskView()
+                .environmentObject(shell.context)
+                .presentationBackground(.ultraThinMaterial)
+        }
     }
     
     private func updateHotkeys() {
@@ -99,8 +109,9 @@ struct RootView: View {
 
 struct PreviewHStack: View {
     @EnvironmentObject var shell: ShellModel
+    
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
@@ -114,19 +125,307 @@ struct PreviewHStack: View {
             .scrollIndicators(.never)
             .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
             .frame(width: 320)
-            
-            if let selectedItem = shell.selectedItem,
-               let clipItem = selectedItem.source as? ClipboardItem { // превью для Clipboard, для остальных можно свое делать
-                ClipboardPreviewView(item: clipItem)
+
+            if shell.query.isEmpty {
+                // Список задач показываем только когда нет query
+                TasksListView(context: shell.context)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
             } else {
-                VStack {
-                    Text("No item selected")
+                if let selectedItem = shell.selectedItem,
+                   let clipItem = selectedItem.source as? ClipboardItem {
+                    ClipboardPreviewView(item: clipItem)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                } else {
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        }
+    }
+}
+
+struct TasksListView: View {
+    @ObservedObject var context: ModuleContext
+    @ObservedObject private var timer = TaskDeletionTimer.shared
+    @State private var tasks: [Task] = []
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Tasks")
+                    .font(.system(size: 16, weight: .semibold))
+                Spacer()
+                Text("\(tasks.count)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(.black.opacity(0.05))
+                    )
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            
+            Divider()
+
+            if tasks.isEmpty {
+                VStack(spacing: 8) {
+                    Text("No tasks")
+                        .font(.system(size: 14))
                         .foregroundColor(.secondary)
+                    Text("Create your first task using 'task <name> #tag !prority @due_date'")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 40)
+            } else {
+                ScrollView {
+                    VStack(spacing: 6) {
+                        ForEach(tasks) { task in
+                            TaskRowView(task: task, context: context)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+                .scrollIndicators(.never)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
+        .onAppear {
+            loadTasks()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .taskListChanged)) { _ in
+            loadTasks()
+        }
+        .onReceive(timer.$activeTimers) { _ in
+            loadTasks()
+        }
+    }
+    
+    private func loadTasks() {
+        context.tasksRepository.load()
+        var upcomingTasks = context.tasksRepository.getUpcomingSorted()
+
+        let allTasks = context.tasksRepository.getAll()
+        let timer = TaskDeletionTimer.shared
+        for task in allTasks {
+            if task.completed && timer.isTimerActive(for: task.id) {
+                if !upcomingTasks.contains(where: { $0.id == task.id }) {
+                    upcomingTasks.append(task)
+                }
+            }
+        }
+        
+        tasks = upcomingTasks
+    }
+}
+
+struct TaskRowView: View {
+    let task: Task
+    let context: ModuleContext
+    @ObservedObject private var timer = TaskDeletionTimer.shared
+    @State private var isHovered = false
+    
+    private var isTimerActive: Bool {
+        timer.isTimerActive(for: task.id)
+    }
+    
+    private var remainingSeconds: Int? {
+        timer.remainingTime(for: task.id)
+    }
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button(action: {
+                if isTimerActive {
+                    timer.cancelTimer(for: task.id)
+                    var updatedTask = task
+                    updatedTask.completed = false
+                    context.tasksRepository.update(updatedTask)
+                    NotificationCenter.default.post(name: .taskListChanged, object: nil)
+                } else if !task.completed {
+                    var updatedTask = task
+                    updatedTask.completed = true
+                    context.tasksRepository.update(updatedTask)
+                    
+                    timer.startTimer(for: task.id) {
+                        context.tasksRepository.delete(task)
+                        NotificationCenter.default.post(name: .taskListChanged, object: nil)
+                    }
+                    
+                    NotificationCenter.default.post(name: .taskListChanged, object: nil)
+                } else {
+                    var updatedTask = task
+                    updatedTask.completed = false
+                    context.tasksRepository.update(updatedTask)
+                    NotificationCenter.default.post(name: .taskListChanged, object: nil)
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: (task.completed || isTimerActive) ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor((task.completed || isTimerActive) ? .green : .secondary)
+                        .font(.system(size: 16))
+
+                    if isTimerActive, let seconds = remainingSeconds {
+                        Text("\(seconds)s")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(task.title)
+                    .font(.system(size: 14, weight: (task.completed || isTimerActive) ? .regular : .medium))
+                    .strikethrough(task.completed || isTimerActive)
+                    .foregroundColor((task.completed || isTimerActive) ? .secondary : .primary)
+                    .lineLimit(2)
+                
+                HStack(spacing: 6) {
+                    // Приоритет
+                    if let priority = task.priority {
+                        let (emoji, color) = priorityInfo(priority)
+                        HStack(spacing: 2) {
+                            Text(emoji)
+                                .font(.system(size: 10))
+                            Text(priorityString(priority))
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(color)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(color.opacity(0.15))
+                        )
+                    }
+                    
+                    // Теги
+                    if !task.tags.isEmpty {
+                        ForEach(task.tags.prefix(2), id: \.self) { tag in
+                            Text("#\(tag)")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.blue)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.blue.opacity(0.15))
+                                )
+                        }
+                    }
+                    
+                    // Дедлайн
+                    if let dueDate = task.dueDate {
+                        Text(formatDueDate(dueDate))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(dueDate < Date() ? .red : .orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill((dueDate < Date() ? Color.red : Color.orange).opacity(0.15))
+                            )
+                    }
+                }
+            }
+            
+            Spacer()
+
+            Button(action: {
+                deleteTask()
+            }) {
+                Image(systemName: "trash")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .opacity(isHovered ? 1.0 : 0.5)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? Color.black.opacity(0.05) : Color.clear)
+        )
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+    
+    private func deleteTask() {
+        if task.completed {
+            // Если задача выполнена, то удаляем сразу без подтверждения
+            timer.cancelTimer(for: task.id)
+            context.tasksRepository.delete(task)
+            NotificationCenter.default.post(name: .taskListChanged, object: nil)
+        } else {
+            // Если задача не выполнена, то показываем подтверждение
+            showDeleteConfirmation()
+        }
+    }
+    
+    private func showDeleteConfirmation() {
+        let alert = NSAlert()
+        alert.messageText = "Delete Task"
+        alert.informativeText = "Are you sure you want to delete \"\(task.title)\"? This action cannot be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        if let deleteButton = alert.buttons.first {
+            deleteButton.hasDestructiveAction = true
+        }
+        
+        let response = alert.runModal()
+        
+        if response == .alertFirstButtonReturn {
+            timer.cancelTimer(for: task.id)
+            context.tasksRepository.delete(task)
+            NotificationCenter.default.post(name: .taskListChanged, object: nil)
+        }
+    }
+    
+    private func priorityInfo(_ priority: TaskPriority) -> (String, Color) {
+        switch priority {
+        case .high: return ("🔴", .red)
+        case .medium: return ("🟡", .orange)
+        case .low: return ("🟢", .green)
+        }
+    }
+    
+    private func priorityString(_ priority: TaskPriority) -> String {
+        switch priority {
+        case .high: return "High"
+        case .medium: return "Med"
+        case .low: return "Low"
+        }
+    }
+    
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else if date < now {
+            let days = calendar.dateComponents([.day], from: date, to: now).day ?? 0
+            return "\(days)d ago"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d"
+            return formatter.string(from: date)
         }
     }
 }
@@ -139,13 +438,13 @@ struct BottomPanel: View {
     private func getActions() -> [Action] {
         switch shell.currentMode {
         case .launcher:
-            return [.deleteAll] // что душе угодно
+            return [.deleteAll]
         case .clipboard:
             return [.pin, .deleteThis, .deleteAll]
         case .tasks:
-            return [] // что душе угодно
+            return []
         case .pomodoro:
-            return [] // что душе угодно
+            return []
         }
     }
     

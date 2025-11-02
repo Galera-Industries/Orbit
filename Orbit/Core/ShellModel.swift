@@ -16,7 +16,7 @@ internal import os
 final class ShellModel: ObservableObject {
     // State + Events
     private let eventBus = EventBus()
-    private let context = ModuleContext()
+    let context = ModuleContext()
     private lazy var registry = ModuleRegistry(context: context)
     private lazy var dispatcher = SearchDispatcher(registry: registry)
     private lazy var clipboardHotkeyManager = ClipboardHotkeyManager(context: context)
@@ -29,6 +29,7 @@ final class ShellModel: ObservableObject {
     @Published var selectedIndex: Int = 0
     @Published private(set) var results: [ResultItem] = []
     @Published var isActionsMenuOpen: Bool = false // открыто/закрыто actions menu
+    @Published var showCreateTaskView: Bool = false
     private var allResults: [ResultItem] = []
     
     // Совместимость с текущим UI
@@ -121,7 +122,28 @@ final class ShellModel: ObservableObject {
         guard filteredItems.indices.contains(selectedIndex) else { return }
         let item = filteredItems[selectedIndex]
         L.search.info("executeSelected alt=\(alternative) title='\(item.title, privacy: .public)'")
-        if alternative, let s = item.secondaryAction { s.run() } else { item.primaryAction.run() }
+
+        if alternative, let s = item.secondaryAction { 
+            s.run() 
+        } else { 
+            item.primaryAction.run() 
+        }
+
+        let module = registry.module(for: state.mode)
+        let modifiers: EventModifiers = alternative ? .shift : []
+        let outcome = module?.execute(item: item, modifiers: modifiers) ?? .done
+
+        switch outcome {
+        case .clearQuery:
+            query = ""
+            performSearch()
+            resetSelection()
+        case .closeWindow:
+            break
+        case .done, .showError:
+            break
+        }
+        
         state.history.insert(query, at: 0)
         eventBus.post(.itemExecuted(item))
     }
