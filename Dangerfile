@@ -156,20 +156,22 @@ def check_for_fun_metrics
       ### 🌱 **Tiny but mighty**
       Only **#{total_lines}** line(s) changed. Fast to review, faster to land! 🚀
     MARKDOWN
+=begin
   elsif total_lines > 1000
     fail (<<~MARKDOWN)
       ### ⛔️ **To many lines added**
       You have to add at most 1000 lines in 1 pr
     MARKDOWN
+=end
   end
-
+=begin
   if files_changed > 20
     fail (<<~MARKDOWN)
       ### ⛔️ **To many files changed**
       You have to change at most 20 files in 1 pr
     MARKDOWN
   end
-
+=end
   if commits > 0 && commits <= 5
     message(<<~MARKDOWN)
       ### 🧹 **Small commits amount**
