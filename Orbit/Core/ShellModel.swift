@@ -40,7 +40,7 @@ final class ShellModel: ObservableObject {
         registry.register(LauncherModule())
         registry.register(ClipboardModule())
         registry.register(TasksModule())
-        registry.register(PomodoroModule())
+        registry.register(TasksStatsModule())
         
         // Подписки
         dispatcher.resultsPublisher

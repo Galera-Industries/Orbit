@@ -32,7 +32,7 @@ struct ActionsListView: View {
                 LazyVStack(spacing: 4) {
                     ForEach(getNeededActions(), id: \.self) { action in
                         ActionRow(
-                            action: action,
+                            action: action
                         ) {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 onSelect()

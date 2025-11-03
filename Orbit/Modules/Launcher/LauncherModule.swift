@@ -53,7 +53,14 @@ final class LauncherModule: ModulePlugin {
             ) {
                 self.deleteAllCompletedTasks()
             },
-            .init(title: "Pomodoro: Start 25", subtitle: "Focus timer", accessory: "↩︎") { print("EXEC: Start pomo") }
+            .init(
+                title: "Task: Stats",
+                subtitle: "View focus statistics",
+                accessory: "↩︎"
+            ) {
+                NotificationCenter.default.post(name: .showStatsView, object: nil)
+            },
+            
         ]
         if cancellation() { return }
         if q.isEmpty {
@@ -75,7 +82,7 @@ final class LauncherModule: ModulePlugin {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete All")
         alert.addButton(withTitle: "Cancel")
-
+        
         if let deleteButton = alert.buttons.first {
             deleteButton.hasDestructiveAction = true
         }

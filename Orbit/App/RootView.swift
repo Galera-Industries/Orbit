@@ -18,6 +18,9 @@ struct RootView: View {
     @State private var selectedFilter: Filter = .all // текущий фильтр в clipboard history
     @State private var ids: [UInt32] = [] // нужно для удержания id локального hotkey
     @State private var showCreateTaskView = false
+    @State private var showPomodoroView = false
+    @State private var selectedPomodoroTask: Task?
+    @State private var showStatsView = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -75,6 +78,20 @@ struct RootView: View {
             L.window.info("focusSearchField notification")
             isSearchFocused = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showPomodoroForTask)) { note in
+            if let task = note.object as? Task {
+                selectedPomodoroTask = task
+                showPomodoroView = true
+            }
+        }
+        .sheet(isPresented: $showPomodoroView) {
+            if let task = selectedPomodoroTask {
+                PomodoroTaskView(task: task, onBack: {
+                    showPomodoroView = false
+                    selectedPomodoroTask = nil
+                })
+            }
+        }
         .onDisappear {
             keyMonitor = nil
             unregisterHotkeys()
@@ -90,6 +107,14 @@ struct RootView: View {
                 .environmentObject(shell.context)
                 .presentationBackground(.ultraThinMaterial)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showStatsView)) { _ in
+            showStatsView = true
+        }
+        .sheet(isPresented: $showStatsView) {
+            PomodoroStatsView(onClose: {
+                showStatsView = false
+            })
+        }
     }
     
     private func updateHotkeys() {
@@ -98,7 +123,7 @@ struct RootView: View {
             ids = HotkeyBootstrap.registerClipboardHotkeys(shell: shell)
         }
     }
-
+    
     private func unregisterHotkeys() {
         for id in ids {
             HotkeyService.shared.unregister(id: id)
@@ -125,7 +150,7 @@ struct PreviewHStack: View {
             .scrollIndicators(.never)
             .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
             .frame(width: 320)
-
+            
             if shell.query.isEmpty {
                 // Список задач показываем только когда нет query
                 TasksListView(context: shell.context)
@@ -150,6 +175,7 @@ struct TasksListView: View {
     @ObservedObject var context: ModuleContext
     @ObservedObject private var timer = TaskDeletionTimer.shared
     @State private var tasks: [Task] = []
+    @State private var activePomodoroTask: Task? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -172,30 +198,38 @@ struct TasksListView: View {
             .padding(.bottom, 8)
             
             Divider()
-
-            if tasks.isEmpty {
-                VStack(spacing: 8) {
-                    Text("No tasks")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                    Text("Create your first task using 'task <name> #tag !prority @due_date'")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary.opacity(0.7))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.vertical, 40)
+            
+            if let active = activePomodoroTask {
+                PomodoroTaskView(task: active, onBack: {
+                    activePomodoroTask = nil
+                })
             } else {
-                ScrollView {
-                    VStack(spacing: 6) {
-                        ForEach(tasks) { task in
-                            TaskRowView(task: task, context: context)
-                        }
+                if tasks.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("No tasks")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                        Text("Create your first task using 'task <name> #tag !priority @due_date'")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary.opacity(0.7))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            ForEach(tasks) { task in
+                                TaskRowView(task: task, context: context, onPomodoroStart: {
+                                    activePomodoroTask = task
+                                })
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                    }
+                    .scrollIndicators(.never)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .scrollIndicators(.never)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
@@ -213,7 +247,7 @@ struct TasksListView: View {
     private func loadTasks() {
         context.tasksRepository.load()
         var upcomingTasks = context.tasksRepository.getUpcomingSorted()
-
+        
         let allTasks = context.tasksRepository.getAll()
         let timer = TaskDeletionTimer.shared
         for task in allTasks {
@@ -231,8 +265,11 @@ struct TasksListView: View {
 struct TaskRowView: View {
     let task: Task
     let context: ModuleContext
+    var onPomodoroStart: (() -> Void)? = nil
     @ObservedObject private var timer = TaskDeletionTimer.shared
+    @ObservedObject private var pomodoro = PomodoroManager.shared
     @State private var isHovered = false
+    @State private var showPomodoro = false
     
     private var isTimerActive: Bool {
         timer.isTimerActive(for: task.id)
@@ -273,7 +310,7 @@ struct TaskRowView: View {
                     Image(systemName: (task.completed || isTimerActive) ? "checkmark.circle.fill" : "circle")
                         .foregroundColor((task.completed || isTimerActive) ? .green : .secondary)
                         .font(.system(size: 16))
-
+                    
                     if isTimerActive, let seconds = remainingSeconds {
                         Text("\(seconds)s")
                             .font(.system(size: 11, weight: .semibold))
@@ -340,7 +377,19 @@ struct TaskRowView: View {
             }
             
             Spacer()
-
+            
+            Button(action: {
+                pomodoro.start(for: task)
+                onPomodoroStart?()
+            }) {
+                Image(systemName: "timer")
+                    .font(.system(size: 14))
+                    .foregroundColor(.accentColor)
+                    .opacity(isHovered ? 1.0 : 0.7)
+            }
+            .buttonStyle(.plain)
+            
+            
             Button(action: {
                 deleteTask()
             }) {
@@ -381,7 +430,7 @@ struct TaskRowView: View {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
-
+        
         if let deleteButton = alert.buttons.first {
             deleteButton.hasDestructiveAction = true
         }
@@ -518,4 +567,12 @@ extension ShellModel {
         guard selectedIndex >= 0 && selectedIndex < filteredItems.count else { return nil }
         return filteredItems[selectedIndex]
     }
+}
+
+extension Notification.Name {
+    static let showPomodoroForTask = Notification.Name("showPomodoroForTask")
+}
+
+extension Notification.Name {
+    static let showStatsView = Notification.Name("showStatsView")
 }

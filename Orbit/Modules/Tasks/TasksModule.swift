@@ -1,10 +1,3 @@
-//
-//  TasksModule.swift
-//  Orbit
-//
-//  Created by Vladislav Pankratov on 22.10.2025.
-//
-
 import Foundation
 
 final class TasksModule: ModulePlugin {
@@ -20,7 +13,7 @@ final class TasksModule: ModulePlugin {
         ctx = nil
     }
     
-    func parse(query: ParsedQuery) -> Any? { query } // используем все токены
+    func parse(query: ParsedQuery) -> Any? { query }
     
     func search(intent: Any, cancellation: @escaping () -> Bool, emit: @escaping ([ResultItem]) -> Void) {
         guard let pq = intent as? ParsedQuery, let ctx = ctx else { return }
@@ -28,21 +21,53 @@ final class TasksModule: ModulePlugin {
         var items: [ResultItem] = []
 
         if pq.text.isEmpty {
-            emit([])
+            let daily = PomodoroStats.shared.statsForToday()
+            let weekly = PomodoroStats.shared.statsForThisWeek()
+            
+            let statsItems = [
+                ResultItem(
+                    title: "Today's Focus Time",
+                    subtitle: "\(daily) minutes focused",
+                    accessory: "☀️",
+                    primaryAction: { }
+                ),
+                ResultItem(
+                    title: "This Week",
+                    subtitle: "\(weekly) minutes total",
+                    accessory: "📆",
+                    primaryAction: { }
+                )
+            ]
+            emit(statsItems)
             return
         }
 
         let matchingTasks = ctx.tasksRepository.search(pq.text)
 
         for task in matchingTasks {
-            if cancellation() { return }
+            // основной item задачи
             items.append(createResultItem(for: task))
+
+            // дополнительный пункт: запустить Pomodoro
+            let focusItem = ResultItem(
+                title: "Focus: \(task.title)",
+                subtitle: "Start Pomodoro for this task",
+                accessory: "⏱",
+                primaryAction: {
+                    if let entity = ctx.tasksRepository.findEntity(byTitle: task.title) {
+                        PomodoroManager.shared.start(for: task)
+                        NotificationCenter.default.post(name: .showPomodoroForTask, object: task)
+                    } else {
+                        print("⚠️ CDTask not found for title \(task.title)")
+                    }
+                },
+                source: task
+            )
+            items.append(focusItem)
         }
 
+        // Если нет совпадений, показываем опцию создания новой задачи
         let isMatchingExisting = !matchingTasks.isEmpty
-
-        // Если не найдено совпадений или текст содержит новые токены (теги, приоритет, дедлайн),
-        // показываем опцию создания новой задачи
         if !isMatchingExisting || !pq.tags.isEmpty || pq.priority != nil || pq.due != nil {
             let newTask = Task.from(parsedQuery: pq)
             let title = "Create: \(newTask.title)"
@@ -64,7 +89,6 @@ final class TasksModule: ModulePlugin {
     private func createResultItem(for task: Task) -> ResultItem {
         let title = task.title
         let subtitle = formatTaskSubtitle(for: task)
-        
         return ResultItem(
             title: title,
             subtitle: subtitle,
@@ -76,39 +100,20 @@ final class TasksModule: ModulePlugin {
         )
     }
     
+    // ниже только вспомогательные функции форматирования
     private func formatTaskSubtitle(for task: Task) -> String {
         var parts: [String] = []
-        
-        // Приоритет
         if let priority = task.priority {
-            let priorityEmoji: String
-            switch priority {
-            case .high: priorityEmoji = "🔴"
-            case .medium: priorityEmoji = "🟡"
-            case .low: priorityEmoji = "🟢"
-            }
-            parts.append(priorityEmoji)
+            let symbol = (priority == .high ? "🔴" :
+                          priority == .medium ? "🟡" : "🟢")
+            parts.append(symbol)
         }
-        
-        // Теги
-        if !task.tags.isEmpty {
-            parts.append("#" + task.tags.joined(separator: " #"))
-        }
-        
-        // Дедлайн
-        if let dueDate = task.dueDate {
-            let dateStr = formatDueDate(dueDate)
-            parts.append(dateStr)
-        }
-        
-        // Дата создания
-        if parts.isEmpty {
-            parts.append(formatDate(task.createdAt))
-        }
-        
+        if !task.tags.isEmpty { parts.append("#" + task.tags.joined(separator: " #")) }
+        if let due = task.dueDate { parts.append(formatDueDate(due)) }
+        if parts.isEmpty { parts.append(formatDate(task.createdAt)) }
         return parts.joined(separator: " • ")
     }
-    
+
     private func formatTaskMetadata(_ pq: ParsedQuery) -> String {
         var parts: [String] = []
         if !pq.tags.isEmpty { parts.append("#" + pq.tags.joined(separator: " #")) }
@@ -127,58 +132,39 @@ final class TasksModule: ModulePlugin {
         }
         return parts.joined(separator: " ")
     }
-    
+
     private func formatDueDate(_ date: Date) -> String {
-        let calendar = Calendar.current
+        let cal = Calendar.current
         let now = Date()
-        
-        if calendar.isDateInToday(date) {
-            return "Due today"
-        } else if calendar.isDateInTomorrow(date) {
-            return "Due tomorrow"
-        } else if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
-            return "Due this week"
-        } else if date < now {
-            let formatter = RelativeDateTimeFormatter()
-            formatter.locale = Locale(identifier: "ru_RU")
-            return "Overdue: \(formatter.localizedString(for: date, relativeTo: now))"
-        } else {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d"
-            return "Due \(formatter.string(from: date))"
+        if cal.isDateInToday(date) { return "Due today" }
+        if cal.isDateInTomorrow(date) { return "Due tomorrow" }
+        if cal.isDate(date, equalTo: now, toGranularity: .weekOfYear) { return "Due this week" }
+        if date < now {
+            let f = RelativeDateTimeFormatter()
+            f.locale = Locale(identifier: "ru_RU")
+            return "Overdue: \(f.localizedString(for: date, relativeTo: now))"
         }
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return "Due \(f.string(from: date))"
     }
-    
+
     private func formatDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
-        return formatter.localizedString(for: date, relativeTo: Date())
+        let f = RelativeDateTimeFormatter()
+        f.locale = Locale(identifier: "ru_RU")
+        return f.localizedString(for: date, relativeTo: Date())
     }
-    
-    private func addTask(_ task: Task) {
-        guard let ctx = ctx else { return }
-        ctx.tasksRepository.add(task)
-    }
-    
+
     private func toggleTaskCompletion(_ task: Task) {
         guard let ctx = ctx else { return }
-        var updatedTask = task
-        updatedTask.completed = !updatedTask.completed
-        ctx.tasksRepository.update(updatedTask)
+        var updated = task
+        updated.completed.toggle()
+        ctx.tasksRepository.update(updated)
     }
-    
+
     func execute(item: ResultItem, modifiers: EventModifiers) -> Outcome {
-        if let task = item.source as? Task {
-            toggleTaskCompletion(task)
-            return .closeWindow
-        }
-        if let pq = item.source as? ParsedQuery, !pq.text.isEmpty {
-            let task = Task.from(parsedQuery: pq)
-            addTask(task)
-            return .clearQuery
-        }
         return .done
     }
-    
+
     func backgroundTick() {}
 }

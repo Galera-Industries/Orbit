@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 import Combine
 
 extension Notification.Name {
@@ -113,6 +114,14 @@ final class TasksRepository: TasksRepositoryProtocol {
         }
         NotificationCenter.default.post(name: .taskListChanged, object: nil)
     }
+    
+    func findEntity(byTitle title: String) -> CDTask? {
+        let context = CoreDataStack.shared.viewContext(for: "TasksModel")
+        let request: NSFetchRequest<CDTask> = CDTask.fetchRequest()
+        request.predicate = NSPredicate(format: "title == %@", title)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
+    }
 
     func load() {
         let cdTasks = coreData.fetchAllTasks()
@@ -161,5 +170,6 @@ protocol TasksRepositoryProtocol {
     func deleteAll()
     func deleteAllCompleted()
     func load()
+    func findEntity(byTitle title: String) -> CDTask?
 }
 
