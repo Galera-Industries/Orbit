@@ -267,3 +267,10 @@ enum Action: String, CaseIterable, Hashable {
         }
     }
 }
+
+struct FileURLPayload: Transferable {
+    let url: URL
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation(exporting: \.url)
+    }
+}
