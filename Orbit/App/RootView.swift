@@ -18,8 +18,30 @@ struct RootView: View {
     @State private var selectedFilter: Filter = .all // текущий фильтр в clipboard history
     @State private var ids: [UInt32] = [] // нужно для удержания id локального hotkey
     @State private var showCreateTaskView = false
+    @State private var win: NSWindow?
     
     var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                mainPanel.allowsHitTesting(true)
+                Color.clear
+                    .frame(height: geo.size.height * 0.05)
+                    .contentShape(Rectangle())
+                    .overlay(
+                        DragHandleView(window: win).allowsHitTesting(true)
+                    )
+            }
+        }
+        .background(
+            WindowAccessor { w in
+                w.isMovableByWindowBackground = false
+                w.isMovable = true
+                win = w
+            }
+        )
+    }
+    
+    private var mainPanel: some View {
         ZStack(alignment: .bottom) {
             Color.clear
             GlassPanel {
@@ -98,7 +120,7 @@ struct RootView: View {
             ids = HotkeyBootstrap.registerClipboardHotkeys(shell: shell)
         }
     }
-
+    
     private func unregisterHotkeys() {
         for id in ids {
             HotkeyService.shared.unregister(id: id)
@@ -125,22 +147,30 @@ struct PreviewHStack: View {
             .scrollIndicators(.never)
             .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
             .frame(width: 320)
-
-            if shell.query.isEmpty {
-                // Список задач показываем только когда нет query
-                TasksListView(context: shell.context)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-            } else {
-                if let selectedItem = shell.selectedItem,
-                   let clipItem = selectedItem.source as? ClipboardItem {
+            
+            if let selectedItem = shell.selectedItem {
+                if let clipItem = selectedItem.source as? ClipboardItem {
                     ClipboardPreviewView(item: clipItem)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
-                } else {
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                else if let taskItem = selectedItem.source as? Task {
+                    TasksListView(context: shell.context)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                } else {
+                    VStack {
+                        Text("No item selected")
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                VStack {
+                    Text("No item selected")
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -172,7 +202,7 @@ struct TasksListView: View {
             .padding(.bottom, 8)
             
             Divider()
-
+            
             if tasks.isEmpty {
                 VStack(spacing: 8) {
                     Text("No tasks")
@@ -213,7 +243,7 @@ struct TasksListView: View {
     private func loadTasks() {
         context.tasksRepository.load()
         var upcomingTasks = context.tasksRepository.getUpcomingSorted()
-
+        
         let allTasks = context.tasksRepository.getAll()
         let timer = TaskDeletionTimer.shared
         for task in allTasks {
@@ -273,7 +303,7 @@ struct TaskRowView: View {
                     Image(systemName: (task.completed || isTimerActive) ? "checkmark.circle.fill" : "circle")
                         .foregroundColor((task.completed || isTimerActive) ? .green : .secondary)
                         .font(.system(size: 16))
-
+                    
                     if isTimerActive, let seconds = remainingSeconds {
                         Text("\(seconds)s")
                             .font(.system(size: 11, weight: .semibold))
@@ -340,7 +370,7 @@ struct TaskRowView: View {
             }
             
             Spacer()
-
+            
             Button(action: {
                 deleteTask()
             }) {
@@ -381,7 +411,7 @@ struct TaskRowView: View {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
-
+        
         if let deleteButton = alert.buttons.first {
             deleteButton.hasDestructiveAction = true
         }
@@ -518,4 +548,23 @@ extension ShellModel {
         guard selectedIndex >= 0 && selectedIndex < filteredItems.count else { return nil }
         return filteredItems[selectedIndex]
     }
+}
+
+final class DragStarterView: NSView {
+    weak var windowRef: NSWindow?
+    override func mouseDown(with event: NSEvent) {
+        windowRef?.performDrag(with: event)
+    }
+}
+
+struct DragHandleView: NSViewRepresentable {
+    weak var window: NSWindow?
+    func makeNSView(context: Context) -> DragStarterView {
+        let v = DragStarterView(frame: .zero)
+        v.wantsLayer = true
+        v.layer?.backgroundColor = NSColor.clear.cgColor
+        v.windowRef = window
+        return v
+    }
+    func updateNSView(_ nsView: DragStarterView, context: Context) { nsView.windowRef = window }
 }
