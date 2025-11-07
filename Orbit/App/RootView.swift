@@ -126,21 +126,29 @@ struct PreviewHStack: View {
             .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
             .frame(width: 320)
 
-            if shell.query.isEmpty {
-                // Список задач показываем только когда нет query
-                TasksListView(context: shell.context)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-            } else {
-                if let selectedItem = shell.selectedItem,
-                   let clipItem = selectedItem.source as? ClipboardItem {
+            if let selectedItem = shell.selectedItem {
+                if let clipItem = selectedItem.source as? ClipboardItem {
                     ClipboardPreviewView(item: clipItem)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
-                } else {
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                else if let taskItem = selectedItem.source as? Task {
+                    TasksListView(context: shell.context)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                } else {
+                    VStack {
+                        Text("No item selected")
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                VStack {
+                    Text("No item selected")
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }

@@ -20,6 +20,11 @@ struct ActionRow: View {
                     shell.pin(item: copyItem)
                 }
             }
+            if action == .unpin {
+                if let item = shell.selectedItem, let copyItem = item.source as? ClipboardItem {
+                    shell.unpin(item: copyItem)
+                }
+            }
             if action == .deleteThis {
                 if let item = shell.selectedItem, let copyItem = item.source as? ClipboardItem {
                     shell.deleteItem(item: copyItem)
