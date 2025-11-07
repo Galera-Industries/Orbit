@@ -23,9 +23,9 @@ struct RootView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .top) {
-                mainPanel
+                mainPanel.allowsHitTesting(true)
                 Color.clear
-                    .frame(height: geo.size.height * 0.17)
+                    .frame(height: geo.size.height * 0.05)
                     .contentShape(Rectangle())
                     .overlay(
                         DragHandleView(window: win).allowsHitTesting(true)
