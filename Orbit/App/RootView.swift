@@ -69,8 +69,13 @@ struct RootView: View {
                         shell.resetSelection()
                         shell.performSearch()
                     }
-                    
-                    PreviewHStack()
+                    if shell.currentMode == .clipboard {
+                        ClipboardPreviewHStack()
+                    } else if shell.currentMode == .launcher {
+                        QuickLauncherScroll()
+                    } else {
+                        BaseScroll()
+                    }
                     
                     Spacer(minLength: 40)
                 }
@@ -128,8 +133,47 @@ struct RootView: View {
         ids.removeAll()
     }
 }
+struct BaseScroll: View {
+    @EnvironmentObject var shell: ShellModel
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 6) {
+                ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
+                    ResultRow(item: item, isSelected: index == shell.selectedIndex)
+                        .onHover { hovering in if hovering { shell.selectedIndex = index } }
+                        .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
+                }
+            }
+            .padding(6)
+        }
+        .scrollIndicators(.never)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
+        .frame(minWidth: 860)
+    }
+}
 
-struct PreviewHStack: View {
+struct QuickLauncherScroll: View {
+    @EnvironmentObject var shell: ShellModel
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 6) {
+                ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
+                    LauncherResultRow(item: item, isSelected: index == shell.selectedIndex)
+                        .onHover { hovering in if hovering { shell.selectedIndex = index } }
+                        .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
+                }
+            }
+            .padding(6)
+        }
+        .scrollIndicators(.never)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
+        .frame(minWidth: 860)
+    }
+}
+
+struct ClipboardPreviewHStack: View {
     @EnvironmentObject var shell: ShellModel
     
     var body: some View {
