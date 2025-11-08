@@ -2,7 +2,7 @@
 //  CDClipboardItem+CoreDataProperties.swift
 //  Orbit
 //
-//  Created by Кирилл Исаев on 28.10.2025.
+//  Created by Кирилл Исаев on 08.11.2025.
 //
 //
 
@@ -18,9 +18,12 @@ extension CDClipboardItem {
 
     @NSManaged public var content: Data?
     @NSManaged public var id: UUID?
+    @NSManaged public var pinned: Int32
     @NSManaged public var timestamp: Date?
     @NSManaged public var type: String?
-    @NSManaged public var pinned: Int32 // не опциональное, если == 0, значит в модели ClipboardItem == nil
+    @NSManaged public var bundleID: String?
+    @NSManaged public var appName: String?
+    @NSManaged public var appIcon: Data?
 
 }
 
