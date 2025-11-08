@@ -41,6 +41,7 @@ final class ShellModel: ObservableObject {
         registry.register(ClipboardModule())
         registry.register(TasksModule())
         registry.register(PomodoroModule())
+        registry.setShellModel(self)
         
         // Подписки
         dispatcher.resultsPublisher
@@ -78,6 +79,9 @@ final class ShellModel: ObservableObject {
     
     func handleEscape() {
         if query.isEmpty {
+            if currentMode != .launcher {
+                switchMode(.launcher)
+            }
             return
         } else {
             query = ""

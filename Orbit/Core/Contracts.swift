@@ -209,6 +209,12 @@ protocol ModulePlugin {
     
     /// Периодическая подкачка данных/очистка кеша (опционально)
     func backgroundTick()
+    
+    func setShellModel(_ model: ShellModel)
+}
+
+extension ModulePlugin {
+    func setShellModel(_ model: ShellModel) { /* noop */ }
 }
 
 // Для модификаторов (Shift и т.п.)
