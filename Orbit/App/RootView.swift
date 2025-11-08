@@ -18,7 +18,11 @@ struct RootView: View {
     @State private var selectedFilter: Filter = .all // текущий фильтр в clipboard history
     @State private var ids: [UInt32] = [] // нужно для удержания id локального hotkey
     @State private var showCreateTaskView = false
+    @State private var showPomodoroView = false
+    @State private var selectedPomodoroTask: Task?
+    @State private var showStatsView = false
     @State private var win: NSWindow?
+
     
     var body: some View {
         GeometryReader { geo in
@@ -69,13 +73,8 @@ struct RootView: View {
                         shell.resetSelection()
                         shell.performSearch()
                     }
-                    if shell.currentMode == .clipboard {
-                        ClipboardPreviewHStack()
-                    } else if shell.currentMode == .launcher {
-                        QuickLauncherScroll()
-                    } else {
-                        BaseScroll()
-                    }
+                    
+                    ClipboardPreviewHStack()
                     
                     Spacer(minLength: 40)
                 }
@@ -117,6 +116,23 @@ struct RootView: View {
                 .environmentObject(shell.context)
                 .presentationBackground(.ultraThinMaterial)
         }
+        
+        .onReceive(NotificationCenter.default.publisher(for: .showPomodoroForTask)) { note in
+            if let task = note.object as? Task {
+                selectedPomodoroTask = task
+                showPomodoroView = true
+            }
+        }
+        
+        .onReceive(NotificationCenter.default.publisher(for: .showStatsView)) { _ in
+            showStatsView = true
+        }
+        
+        .sheet(isPresented: $showStatsView) {
+            PomodoroStatsView(onClose: {
+                showStatsView = false
+            })
+        }
     }
     
     private func updateHotkeys() {
@@ -140,7 +156,7 @@ struct BaseScroll: View {
         ScrollView {
             LazyVStack(spacing: 6) {
                 ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
-                    ResultRow(item: item, isSelected: index == shell.selectedIndex)
+                    LauncherResultRow(item: item, isSelected: index == shell.selectedIndex)
                         .onHover { hovering in if hovering { shell.selectedIndex = index } }
                         .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
                 }
@@ -224,6 +240,7 @@ struct TasksListView: View {
     @ObservedObject var context: ModuleContext
     @ObservedObject private var timer = TaskDeletionTimer.shared
     @State private var tasks: [Task] = []
+    @State private var activePomodoroTask: Task? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -247,29 +264,37 @@ struct TasksListView: View {
             
             Divider()
             
-            if tasks.isEmpty {
-                VStack(spacing: 8) {
-                    Text("No tasks")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                    Text("Create your first task using 'task <name> #tag !prority @due_date'")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary.opacity(0.7))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.vertical, 40)
+            if let active = activePomodoroTask {
+                PomodoroTaskView(task: active, onBack: {
+                    activePomodoroTask = nil
+                })
             } else {
-                ScrollView {
-                    VStack(spacing: 6) {
-                        ForEach(tasks) { task in
-                            TaskRowView(task: task, context: context)
-                        }
+                if tasks.isEmpty {
+                    VStack(spacing: 8) {
+                        Text("No tasks")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                        Text("Create your first task using 'task <name> #tag !priority @due_date'")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary.opacity(0.7))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            ForEach(tasks) { task in
+                                TaskRowView(task: task, context: context, onPomodoroStart: {
+                                    activePomodoroTask = task
+                                })
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                    }
+                    .scrollIndicators(.never)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .scrollIndicators(.never)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
@@ -305,8 +330,11 @@ struct TasksListView: View {
 struct TaskRowView: View {
     let task: Task
     let context: ModuleContext
+    var onPomodoroStart: (() -> Void)? = nil
     @ObservedObject private var timer = TaskDeletionTimer.shared
+    @ObservedObject private var pomodoro = PomodoroManager.shared
     @State private var isHovered = false
+    @State private var showPomodoro = false
     
     private var isTimerActive: Bool {
         timer.isTimerActive(for: task.id)
@@ -416,6 +444,18 @@ struct TaskRowView: View {
             Spacer()
             
             Button(action: {
+                pomodoro.start(for: task)
+                onPomodoroStart?()
+            }) {
+                Image(systemName: "timer")
+                    .font(.system(size: 14))
+                    .foregroundColor(.accentColor)
+                    .opacity(isHovered ? 1.0 : 0.7)
+            }
+            .buttonStyle(.plain)
+            
+            
+            Button(action: {
                 deleteTask()
             }) {
                 Image(systemName: "trash")
@@ -503,6 +543,7 @@ struct TaskRowView: View {
         }
     }
 }
+
 
 struct BottomPanel: View {
     @EnvironmentObject private var shell: ShellModel
@@ -592,6 +633,14 @@ extension ShellModel {
         guard selectedIndex >= 0 && selectedIndex < filteredItems.count else { return nil }
         return filteredItems[selectedIndex]
     }
+}
+
+extension Notification.Name {
+    static let showPomodoroForTask = Notification.Name("showPomodoroForTask")
+}
+
+extension Notification.Name {
+    static let showStatsView = Notification.Name("showStatsView")
 }
 
 final class DragStarterView: NSView {

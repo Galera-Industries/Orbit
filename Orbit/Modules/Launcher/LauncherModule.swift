@@ -51,9 +51,13 @@ final class LauncherModule: ModulePlugin {
             .init(title: "Open Tasks", subtitle: "Switch to tasks mode", accessory: "↩︎") { [weak self] in
                 self?.shellModel?.switchMode(.tasks)
             },
-            .init(title: "Open Pomodoro", subtitle: "Switch to pomodoro mode", accessory: "↩︎") { [weak self] in
-                self?.shellModel?.switchMode(.pomodoro)
-            }
+            .init(
+                title: "Task: Stats",
+                subtitle: "View focus statistics",
+                accessory: "↩︎"
+            ) {
+                NotificationCenter.default.post(name: .showStatsView, object: nil)
+            },
         ]
         
         let trimmed = q.trimmingCharacters(in: .whitespacesAndNewlines)
