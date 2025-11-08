@@ -74,7 +74,15 @@ struct RootView: View {
                         shell.performSearch()
                     }
                     
-                    ClipboardPreviewHStack()
+                    if shell.currentMode == .launcher {
+                        QuickLauncherScroll()
+                    } else if shell.currentMode == .clipboard || shell.currentMode == .pomodoro {
+                        ClipboardPreviewHStack()
+                    } else {
+                        TasksListView(context: shell.context)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    }
                     
                     Spacer(minLength: 40)
                 }
