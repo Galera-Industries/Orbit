@@ -89,13 +89,28 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     let type: ClipboardType
     let content: Data
     var pinned: Int? // от 1 до 100, место на котором запинено
+    var bundleID: String? // приложение откуда скопировали
+    var appName: String? // имя приложения
+    var appIcon: Data? // картинка
     
-    init(id: UUID = UUID(), timestamp: Date = Date(), type: ClipboardType, content: Data, pinned: Int? = nil) {
+    init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        type: ClipboardType,
+        content: Data,
+        pinned: Int? = nil,
+        bundleID: String? = nil,
+        appName: String? = nil,
+        appIcon: Data? = nil
+    ) {
         self.id = id
         self.timestamp = timestamp
         self.type = type
         self.content = content
         self.pinned = pinned
+        self.bundleID = bundleID
+        self.appName = appName
+        self.appIcon = appIcon
     }
     
     var displayText: String {

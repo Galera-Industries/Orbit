@@ -22,6 +22,9 @@ final class CoreDataManager: CoreDataProtocol {
         CDitem.timestamp = item.timestamp
         CDitem.type = item.type.rawValue
         CDitem.content = item.content
+        CDitem.bundleID = item.bundleID
+        CDitem.appName = item.appName
+        CDitem.appIcon = item.appIcon
         CoreDataStack.shared.saveContext(for: Models.clipboard.rawValue)
     }
     
