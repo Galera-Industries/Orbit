@@ -21,6 +21,7 @@ final class ShellModel: ObservableObject {
     private var bag = Set<AnyCancellable>()
     
     private var state = AppState()
+    internal var window: WindowManager?
     
     // Публичные observable-свойства
     @Published var query: String = ""
@@ -79,6 +80,8 @@ final class ShellModel: ObservableObject {
         if query.isEmpty {
             if currentMode != .launcher {
                 switchMode(.launcher)
+            } else {
+                window?.hide()
             }
             return
         } else {
