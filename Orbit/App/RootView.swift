@@ -69,14 +69,16 @@ struct RootView: View {
                         shell.resetSelection()
                         shell.performSearch()
                     }
-                    if shell.currentMode == .clipboard {
-                        ClipboardPreviewHStack()
-                    } else if shell.currentMode == .launcher {
+                    if shell.currentMode == .launcher {
                         QuickLauncherScroll()
+                    } else if shell.currentMode == .clipboard || shell.currentMode == .pomodoro {
+                        ClipboardPreviewHStack()
                     } else {
-                        BaseScroll()
+                        TasksListView(context: shell.context)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
-                    
+
                     Spacer(minLength: 40)
                 }
                 .padding(16)
@@ -181,7 +183,7 @@ struct ClipboardPreviewHStack: View {
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
-                        ResultRow(item: item, isSelected: index == shell.selectedIndex)
+                        LauncherResultRow(item: item, isSelected: index == shell.selectedIndex)
                             .onHover { hovering in if hovering { shell.selectedIndex = index } }
                             .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
                     }
@@ -192,14 +194,13 @@ struct ClipboardPreviewHStack: View {
             .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
             .frame(width: 320)
             
-            if let selectedItem = shell.selectedItem {
+            if shell.currentMode == .tasks {
+                TasksListView(context: shell.context)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            } else if let selectedItem = shell.selectedItem {
                 if let clipItem = selectedItem.source as? ClipboardItem {
                     ClipboardPreviewView(item: clipItem)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-                }
-                else if selectedItem.source is Task {
-                    TasksListView(context: shell.context)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
                 } else {
