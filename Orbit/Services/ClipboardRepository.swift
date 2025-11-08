@@ -130,7 +130,10 @@ final class ClipboardRepository: ClipboardRepositoryProtocol {
             timestamp: timestamp,
             type: type,
             content: content,
-            pinned: cdItem.pinned == 0 ? nil : Int(cdItem.pinned)
+            pinned: cdItem.pinned == 0 ? nil : Int(cdItem.pinned),
+            bundleID: cdItem.bundleID,
+            appName: cdItem.appName,
+            appIcon: cdItem.appIcon
         )
     }
     
