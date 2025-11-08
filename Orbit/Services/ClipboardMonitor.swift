@@ -94,7 +94,7 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
     private func sourceFromBundleID(_ bid: String) -> (String, String?, Data?) {
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bid).first
         if let app = running {
-            return (bid, app.localizedName, app.icon?.jpegData())
+            return (bid, app.localizedName, app.icon?.jpegData(compression: 1.0))
         } else {
             return (bid, nil, nil)
         }
@@ -102,7 +102,7 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
     
     private func currentFrontmostSource() -> (String?, String?, Data?) {
         let app = NSWorkspace.shared.frontmostApplication
-        return (app?.bundleIdentifier, app?.localizedName, app?.icon?.jpegData())
+        return (app?.bundleIdentifier, app?.localizedName, app?.icon?.jpegData(compression: 1.0))
     }
 }
 
