@@ -150,9 +150,10 @@ struct CreateTaskView: View {
                             .buttonStyle(.plain)
                             
                             Button(action: {
-                                let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!
-                                dueDate = tomorrow
-                                showDatePicker = false
+                                if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date())){
+                                    dueDate = tomorrow
+                                    showDatePicker = false
+                                }
                             }) {
                                 Text("Tomorrow")
                                     .font(.system(size: 13))
@@ -168,7 +169,9 @@ struct CreateTaskView: View {
                                 if showDatePicker && selectedDate == Date() && dueDate == nil {
                                     selectedDate = Date()
                                 } else if showDatePicker && dueDate != nil {
-                                    selectedDate = dueDate!
+                                    if let dueDate = dueDate{
+                                        selectedDate = dueDate
+                                    }
                                 }
                             }) {
                                 HStack {
