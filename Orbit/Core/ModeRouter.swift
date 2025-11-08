@@ -34,6 +34,6 @@ final class ModeRouter {
         }
         
         L.router.info("route(raw='\(trimmed, privacy: .public)') -> mode=\(mode.rawValue, privacy: .public), body='\(body, privacy: .public)'")
-        return QueryParser().parse(body, mode: mode)
+        return QueryParser()?.parse(body, mode: mode) ?? ParsedQuery(raw: "", mode: .launcher, text: "", tags: [""], priority: nil, due: nil)
     }
 }

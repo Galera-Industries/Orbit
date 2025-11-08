@@ -58,7 +58,7 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
             }
         }
         if let imageData = pasteboard.data(forType: .tiff), !imageData.isEmpty {
-            if let image = NSImage(data: imageData) { // проверяем что это вообще картинка
+            if NSImage(data: imageData) != nil { // проверяем что это вообще картинка
                 return ClipboardItem(type: .image, content: imageData)
             }
         }

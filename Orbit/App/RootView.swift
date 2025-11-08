@@ -198,7 +198,7 @@ struct ClipboardPreviewHStack: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
-                else if let taskItem = selectedItem.source as? Task {
+                else if selectedItem.source is Task {
                     TasksListView(context: shell.context)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))

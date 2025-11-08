@@ -150,9 +150,10 @@ struct CreateTaskView: View {
                             .buttonStyle(.plain)
                             
                             Button(action: {
-                                let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!
-                                dueDate = tomorrow
-                                showDatePicker = false
+                                if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date())){
+                                    dueDate = tomorrow
+                                    showDatePicker = false
+                                }
                             }) {
                                 Text("Tomorrow")
                                     .font(.system(size: 13))
@@ -168,12 +169,14 @@ struct CreateTaskView: View {
                                 if showDatePicker && selectedDate == Date() && dueDate == nil {
                                     selectedDate = Date()
                                 } else if showDatePicker && dueDate != nil {
-                                    selectedDate = dueDate!
+                                    if let dueDate = dueDate{
+                                        selectedDate = dueDate
+                                    }
                                 }
                             }) {
                                 HStack {
                                     Image(systemName: "calendar")
-                                    Text(dueDate == nil ? "Select date" : formatDate(dueDate!))
+                                    Text(dueDate == nil ? "Select date" : formatDate(dueDate))
                                         .font(.system(size: 13))
                                 }
                                 .padding(.horizontal, 12)
@@ -202,7 +205,9 @@ struct CreateTaskView: View {
                                 .onChange(of: selectedDate) { newDate in
                                     let selectedDay = Calendar.current.startOfDay(for: newDate)
                                     let today = Calendar.current.startOfDay(for: Date())
-                                    let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+                                    guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
+                                        return
+                                    }
 
                                     if Calendar.current.isDate(selectedDay, inSameDayAs: today) {
                                         dueDate = today
@@ -278,10 +283,11 @@ struct CreateTaskView: View {
         dismiss()
     }
     
-    private func formatDate(_ date: Date) -> String {
+    private func formatDate(_ date: Date?) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
+        guard let date else { return "" }
         return formatter.string(from: date)
     }
 }
