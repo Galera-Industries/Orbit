@@ -7,6 +7,8 @@
 
 import Foundation
 import AppKit
+import Carbon.HIToolbox
+import Combine
 
 final class ClipboardModule: ModulePlugin {
     private var c: ModuleContext? // храним все зависимости
@@ -18,6 +20,8 @@ final class ClipboardModule: ModulePlugin {
             self?.c?.clipboardRepository.add(item)
         }
         c?.clipboardMonitor.startMonitoring()
+        
+        c?.tracker.rememberNow()
     }
     func deactivate() {
         c?.clipboardMonitor.stopMonitoring()
@@ -73,5 +77,33 @@ final class ClipboardModule: ModulePlugin {
                 pasteboard.writeObjects(urls)
             }
         }
+        
+        NSApp.hide(nil)
+        activatePreviousApp(c?.tracker.previousApp)
+        pasteSimulation()
+    }
+    
+    private func pasteSimulation() {
+        let src = CGEventSource(stateID: .combinedSessionState)
+        let cmdDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_Command), keyDown: true)
+        let vDown = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
+        let vUp = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
+        let cmdUp = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_Command), keyDown: false)
+        
+        cmdDown?.flags = .maskCommand
+        vDown?.flags = .maskCommand
+        
+        let loc = CGEventTapLocation.cghidEventTap
+
+        cmdDown?.post(tap: loc)
+        vDown?.post(tap: loc)
+        vUp?.post(tap: loc)
+        cmdUp?.post(tap: loc)
+    }
+    
+    @discardableResult
+    private func activatePreviousApp(_ app: NSRunningApplication?) -> Bool {
+        guard let app = app else { return false }
+        return app.activate(options: [.activateIgnoringOtherApps])
     }
 }

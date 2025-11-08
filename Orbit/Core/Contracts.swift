@@ -190,6 +190,7 @@ final class ModuleContext: ObservableObject {
     lazy var clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository(coreData: coreData)
     lazy var tasksRepository: TasksRepositoryProtocol = TasksRepository(coreData: coreData)
     lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(context: self)
+    let tracker: FrontAppTracker = FrontAppTracker()
 }
 
 // MARK: - Протокол плагина (модуля)
