@@ -11,8 +11,6 @@ import AppKit
 import Carbon
 internal import os
 
-// ResultItem переехал в Contracts.swift
-
 final class ShellModel: ObservableObject {
     // State + Events
     private let eventBus = EventBus()
@@ -23,6 +21,7 @@ final class ShellModel: ObservableObject {
     private var bag = Set<AnyCancellable>()
     
     private var state = AppState()
+    internal var window: WindowManager?
     
     // Публичные observable-свойства
     @Published var query: String = ""
@@ -41,6 +40,7 @@ final class ShellModel: ObservableObject {
         registry.register(ClipboardModule())
         registry.register(TasksModule())
         registry.register(TasksStatsModule())
+        registry.setShellModel(self)
         
         // Подписки
         dispatcher.resultsPublisher
@@ -78,6 +78,11 @@ final class ShellModel: ObservableObject {
     
     func handleEscape() {
         if query.isEmpty {
+            if currentMode != .launcher {
+                switchMode(.launcher)
+            } else {
+                window?.hide()
+            }
             return
         } else {
             query = ""

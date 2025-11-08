@@ -21,8 +21,30 @@ struct RootView: View {
     @State private var showPomodoroView = false
     @State private var selectedPomodoroTask: Task?
     @State private var showStatsView = false
+    @State private var win: NSWindow?
     
     var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                mainPanel.allowsHitTesting(true)
+                Color.clear
+                    .frame(height: geo.size.height * 0.05)
+                    .contentShape(Rectangle())
+                    .overlay(
+                        DragHandleView(window: win).allowsHitTesting(true)
+                    )
+            }
+        }
+        .background(
+            WindowAccessor { w in
+                w.isMovableByWindowBackground = false
+                w.isMovable = true
+                win = w
+            }
+        )
+    }
+    
+    private var mainPanel: some View {
         ZStack(alignment: .bottom) {
             Color.clear
             GlassPanel {
@@ -50,8 +72,13 @@ struct RootView: View {
                         shell.resetSelection()
                         shell.performSearch()
                     }
-                    
-                    PreviewHStack()
+                    if shell.currentMode == .clipboard {
+                        ClipboardPreviewHStack()
+                    } else if shell.currentMode == .launcher {
+                        QuickLauncherScroll()
+                    } else {
+                        BaseScroll()
+                    }
                     
                     Spacer(minLength: 40)
                 }
@@ -131,8 +158,47 @@ struct RootView: View {
         ids.removeAll()
     }
 }
+struct BaseScroll: View {
+    @EnvironmentObject var shell: ShellModel
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 6) {
+                ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
+                    ResultRow(item: item, isSelected: index == shell.selectedIndex)
+                        .onHover { hovering in if hovering { shell.selectedIndex = index } }
+                        .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
+                }
+            }
+            .padding(6)
+        }
+        .scrollIndicators(.never)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
+        .frame(minWidth: 860)
+    }
+}
 
-struct PreviewHStack: View {
+struct QuickLauncherScroll: View {
+    @EnvironmentObject var shell: ShellModel
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 6) {
+                ForEach(Array(shell.filteredItems.enumerated()), id: \.element.id) { index, item in
+                    LauncherResultRow(item: item, isSelected: index == shell.selectedIndex)
+                        .onHover { hovering in if hovering { shell.selectedIndex = index } }
+                        .onTapGesture { shell.selectedIndex = index; shell.executeSelected() }
+                }
+            }
+            .padding(6)
+        }
+        .scrollIndicators(.never)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
+        .frame(minWidth: 860)
+    }
+}
+
+struct ClipboardPreviewHStack: View {
     @EnvironmentObject var shell: ShellModel
     
     var body: some View {
@@ -151,21 +217,29 @@ struct PreviewHStack: View {
             .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.06)))
             .frame(width: 320)
             
-            if shell.query.isEmpty {
-                // Список задач показываем только когда нет query
-                TasksListView(context: shell.context)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-            } else {
-                if let selectedItem = shell.selectedItem,
-                   let clipItem = selectedItem.source as? ClipboardItem {
+            if let selectedItem = shell.selectedItem {
+                if let clipItem = selectedItem.source as? ClipboardItem {
                     ClipboardPreviewView(item: clipItem)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
-                } else {
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                else if selectedItem.source is Task {
+                    TasksListView(context: shell.context)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                } else {
+                    VStack {
+                        Text("No item selected")
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                VStack {
+                    Text("No item selected")
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -203,6 +277,17 @@ struct TasksListView: View {
                 PomodoroTaskView(task: active, onBack: {
                     activePomodoroTask = nil
                 })
+            if tasks.isEmpty {
+                VStack(spacing: 8) {
+                    Text("No tasks")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    Text("Create your first task using 'task <name> #tag !prority @due_date'")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 40)
             } else {
                 if tasks.isEmpty {
                     VStack(spacing: 8) {
@@ -575,4 +660,23 @@ extension Notification.Name {
 
 extension Notification.Name {
     static let showStatsView = Notification.Name("showStatsView")
+}
+
+final class DragStarterView: NSView {
+    weak var windowRef: NSWindow?
+    override func mouseDown(with event: NSEvent) {
+        windowRef?.performDrag(with: event)
+    }
+}
+
+struct DragHandleView: NSViewRepresentable {
+    weak var window: NSWindow?
+    func makeNSView(context: Context) -> DragStarterView {
+        let v = DragStarterView(frame: .zero)
+        v.wantsLayer = true
+        v.layer?.backgroundColor = NSColor.clear.cgColor
+        v.windowRef = window
+        return v
+    }
+    func updateNSView(_ nsView: DragStarterView, context: Context) { nsView.windowRef = window }
 }

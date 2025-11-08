@@ -136,13 +136,21 @@ final class TasksModule: ModulePlugin {
     private func formatDueDate(_ date: Date) -> String {
         let cal = Calendar.current
         let now = Date()
-        if cal.isDateInToday(date) { return "Due today" }
-        if cal.isDateInTomorrow(date) { return "Due tomorrow" }
-        if cal.isDate(date, equalTo: now, toGranularity: .weekOfYear) { return "Due this week" }
-        if date < now {
-            let f = RelativeDateTimeFormatter()
-            f.locale = Locale(identifier: "ru_RU")
-            return "Overdue: \(f.localizedString(for: date, relativeTo: now))"
+        
+        if calendar.isDateInToday(date) {
+            return "Due today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Due tomorrow"
+        } else if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
+            return "Due this week"
+        } else if date < now {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.locale = Locale(identifier: "en")
+            return "Overdue: \(formatter.localizedString(for: date, relativeTo: now))"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d"
+            return "Due \(formatter.string(from: date))"
         }
         let f = DateFormatter()
         f.dateFormat = "MMM d"
@@ -150,9 +158,14 @@ final class TasksModule: ModulePlugin {
     }
 
     private func formatDate(_ date: Date) -> String {
-        let f = RelativeDateTimeFormatter()
-        f.locale = Locale(identifier: "ru_RU")
-        return f.localizedString(for: date, relativeTo: Date())
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "en")
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    private func addTask(_ task: Task) {
+        guard let ctx = ctx else { return }
+        ctx.tasksRepository.add(task)
     }
 
     private func toggleTaskCompletion(_ task: Task) {

@@ -39,8 +39,19 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
         guard currentChangeCount != lastChangeCount else { return }
         lastChangeCount = currentChangeCount
         
+        let bid = readSourceBundleID(from: pasteboard)
+        
+        let source: (String?, String?, Data?) = {
+            if let bid { return sourceFromBundleID(bid)}
+            return currentFrontmostSource()
+        }()
+        
         if let item = captureCurrentClipboard() { // если получилось захватит вызываем апдейт клипборда
-            onClipboardChange?(item)
+            var e = item
+            e.bundleID = source.0
+            e.appName = source.1
+            e.appIcon = source.2
+            onClipboardChange?(e)
         }
     }
     
@@ -58,7 +69,7 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
             }
         }
         if let imageData = pasteboard.data(forType: .tiff), !imageData.isEmpty {
-            if let image = NSImage(data: imageData) { // проверяем что это вообще картинка
+            if NSImage(data: imageData) != nil { // проверяем что это вообще картинка
                 return ClipboardItem(type: .image, content: imageData)
             }
         }
@@ -68,6 +79,30 @@ final class ClipboardMonitor: ClipboardMonitorProtocol {
             return ClipboardItem(type: .text, content: data)
         }
         return nil
+    }
+    
+    private func readSourceBundleID(from pb: NSPasteboard) -> String? {
+        guard let item = pb.pasteboardItems?.first,
+              let data = item.data(forType: NSPasteboard.PasteboardType("org.nspasteboard.source")),
+              let bid = String(data: data, encoding: .utf8),
+              !bid.isEmpty else {
+            return nil
+        }
+        return bid
+    }
+    
+    private func sourceFromBundleID(_ bid: String) -> (String, String?, Data?) {
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bid).first
+        if let app = running {
+            return (bid, app.localizedName, app.icon?.jpegData(compression: 1.0))
+        } else {
+            return (bid, nil, nil)
+        }
+    }
+    
+    private func currentFrontmostSource() -> (String?, String?, Data?) {
+        let app = NSWorkspace.shared.frontmostApplication
+        return (app?.bundleIdentifier, app?.localizedName, app?.icon?.jpegData(compression: 1.0))
     }
 }
 

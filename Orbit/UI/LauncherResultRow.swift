@@ -1,17 +1,19 @@
 //
-//  ResultRow.swift
+//  LauncherResultRow.swift
 //  Orbit
 //
-//  Created by Tom Tim on 20.10.2025.
+//  Created by Tom Tim on 08.11.2025.
 //
 
-import UniformTypeIdentifiers
-import AppKit
 import SwiftUI
+import AppKit
 
-struct ResultRow: View {
+struct LauncherResultRow: View {
     let item: ResultItem
     let isSelected: Bool
+    
+    @State private var icon: NSImage? = nil
+    @State private var isLoadingIcon = false
     
     private var isPinned: Bool {
         (item.source as? ClipboardItem)?.pinned != nil
@@ -33,10 +35,17 @@ struct ResultRow: View {
     
     var body: some View {
         draggableIfClipboard()
+            .onAppear { loadIconIfNeeded() }
     }
     
     private var rowContent: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
+            if shouldShowIconArea {
+                iconView
+                    .frame(width: 36, height: 36)
+            }
+            
+            // MAIN TEXT
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.system(size: 16, weight: .semibold))
@@ -48,7 +57,9 @@ struct ResultRow: View {
                         .lineLimit(1)
                 }
             }
+            
             Spacer()
+            
             if let accessory = item.accessory {
                 Text(accessory)
                     .font(.system(size: 12, weight: .medium))
@@ -73,19 +84,64 @@ struct ResultRow: View {
         )
     }
     
+    private var shouldShowIconArea: Bool {
+        // Show icon area for URLs (apps/files) and for the web search item.
+        if item.source is URL { return true }
+        if item.subtitle == "Search in default browser" { return true } // web search
+        return false // base commands and clipboard placeholders -> no icon area
+    }
+    
+    @ViewBuilder
+    private var iconView: some View {
+        if let nsimg = icon {
+            Image(nsImage: nsimg)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        } else if item.subtitle == "Search in default browser" {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .regular))
+                .frame(width: 20, height: 20)
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.06)))
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.white.opacity(0.06))
+                    .frame(width: 36, height: 36)
+                if isLoadingIcon {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                } else {
+                    Image(systemName: "doc")
+                }
+            }
+        }
+    }
+    
     @ViewBuilder
     private func draggableIfClipboard() -> some View {
         if let clip = item.source as? ClipboardItem {
             switch clip.type {
             case .text:
-                self.rowContent.draggable(String(data: clip.content, encoding: .utf8) ?? "")
+                rowContent.draggable(String(data: clip.content, encoding: .utf8) ?? "")
             case .image:
-                self.rowContent.draggable(imageFile(clip))
+                rowContent.draggable(imageFile(clip))
             case .fileURL:
-                self.rowContent.draggable(existingFileURL(clip))
+                rowContent.draggable(existingFileURL(clip))
             }
         } else {
-            self.rowContent
+            rowContent
+        }
+    }
+    
+    private func loadIconIfNeeded() {
+        guard icon == nil, !isLoadingIcon else { return }
+        guard let url = item.source as? URL else { return }
+        
+        isLoadingIcon = true
+        AppIconProvider.shared.loadIcon(forPath: url.path) { loaded in
+            self.icon = loaded
+            self.isLoadingIcon = false
         }
     }
     
@@ -109,4 +165,3 @@ struct ResultRow: View {
         return FileURLPayload(url: file)
     }
 }
-

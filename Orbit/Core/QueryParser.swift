@@ -8,9 +8,22 @@
 import Foundation
 
 final class QueryParser {
-    private let tagRegex = try! NSRegularExpression(pattern: #"(?:(?<=\s)|^)#([A-Za-z0-9_\-]+)"#)
-    private let prioRegex = try! NSRegularExpression(pattern: #"(?:(?<=\s)|^)!([A-Za-z0-9]+)"#)
-    private let dueRegex = try! NSRegularExpression(pattern: #"(?:(?<=\s)|^)@([A-Za-z0-9\-]+)"#)
+    private let tagRegex: NSRegularExpression
+    private let prioRegex: NSRegularExpression
+    private let dueRegex: NSRegularExpression
+
+    init?() {
+        guard let tag = try? NSRegularExpression(pattern: #"(?:(?<=\s)|^)#([A-Za-z0-9_\-]+)"#),
+              let prio = try? NSRegularExpression(pattern: #"(?:(?<=\s)|^)!([A-Za-z0-9]+)"#),
+              let due = try? NSRegularExpression(pattern: #"(?:(?<=\s)|^)@([A-Za-z0-9\-]+)"#) else {
+            return nil
+        }
+        
+        self.tagRegex = tag
+        self.prioRegex = prio
+        self.dueRegex = due
+    }
+    
     private let isoFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")

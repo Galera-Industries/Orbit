@@ -100,6 +100,8 @@ struct TextInfoContent: View {
         infoRow(label: "Content type", value: item.type.rawValue.capitalized)
         Divider().padding(.vertical, -5)
         infoRow(label: "Copied", value: formatDate(item.timestamp))
+        Divider().padding(.vertical, -5)
+        SourceRow(label: "Copied from", appName: item.appName, appIcon: NSImage(data: item.appIcon ?? Data()))
     }
 }
 
@@ -117,6 +119,8 @@ struct ImageInfoContent: View {
         infoRow(label: "Image size", value: "\(size)")
         Divider().padding(.vertical, -5)
         infoRow(label: "Copied", value: formatDate(item.timestamp))
+        Divider().padding(.vertical, -5)
+        SourceRow(label: "Copied from", appName: item.appName, appIcon: NSImage(data: item.appIcon ?? Data()))
     }
 }
 
@@ -133,6 +137,8 @@ struct FileInfoContent: View {
         infoRow(label: "File size", value: "\(size)")
         Divider().padding(.vertical, -5)
         infoRow(label: "Copied", value: formatDate(item.timestamp))
+        Divider().padding(.vertical, -5)
+        SourceRow(label: "Copied from", appName: item.appName, appIcon: NSImage(data: item.appIcon ?? Data()))
     }
 }
 
@@ -146,8 +152,36 @@ func infoRow(label: String, value: String) -> some View {
     }
 }
 
+struct SourceRow: View {
+    let label: String
+    let appName: String?
+    let appIcon: NSImage?
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .foregroundColor(.secondary)
+                .frame(width: 120, alignment: .leading)
+            Spacer()
+            HStack(spacing: 8) {
+                if let icon = appIcon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .drawingGroup(opaque: false)
+                        .cornerRadius(3)
+                }
+                Text(appName ?? "Unknown app")
+            }
+        }
+    }
+}
+
+
 private func formatDate(_ date: Date) -> String {
     let formatter = RelativeDateTimeFormatter()
-    formatter.locale = Locale(identifier: "ru_RU")
+    formatter.locale = Locale(identifier: "en")
     return formatter.localizedString(for: date, relativeTo: Date())
 }

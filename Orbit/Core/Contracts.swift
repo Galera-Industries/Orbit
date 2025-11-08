@@ -89,13 +89,28 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     let type: ClipboardType
     let content: Data
     var pinned: Int? // от 1 до 100, место на котором запинено
+    var bundleID: String? // приложение откуда скопировали
+    var appName: String? // имя приложения
+    var appIcon: Data? // картинка
     
-    init(id: UUID = UUID(), timestamp: Date = Date(), type: ClipboardType, content: Data, pinned: Int? = nil) {
+    init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        type: ClipboardType,
+        content: Data,
+        pinned: Int? = nil,
+        bundleID: String? = nil,
+        appName: String? = nil,
+        appIcon: Data? = nil
+    ) {
         self.id = id
         self.timestamp = timestamp
         self.type = type
         self.content = content
         self.pinned = pinned
+        self.bundleID = bundleID
+        self.appName = appName
+        self.appIcon = appIcon
     }
     
     var displayText: String {
@@ -190,6 +205,7 @@ final class ModuleContext: ObservableObject {
     lazy var clipboardRepository: ClipboardRepositoryProtocol = ClipboardRepository(coreData: coreData)
     lazy var tasksRepository: TasksRepositoryProtocol = TasksRepository(coreData: coreData)
     lazy var clipboardHotkeyManager: ClipboardHotkeyManager = ClipboardHotkeyManager(context: self)
+    let tracker: FrontAppTracker = FrontAppTracker()
 }
 
 // MARK: - Протокол плагина (модуля)
@@ -209,6 +225,12 @@ protocol ModulePlugin {
     
     /// Периодическая подкачка данных/очистка кеша (опционально)
     func backgroundTick()
+    
+    func setShellModel(_ model: ShellModel)
+}
+
+extension ModulePlugin {
+    func setShellModel(_ model: ShellModel) { /* noop */ }
 }
 
 // Для модификаторов (Shift и т.п.)
@@ -265,5 +287,12 @@ enum Action: String, CaseIterable, Hashable {
         case .deleteThis: "trash.fill"
         case .deleteAll: "trash.fill"
         }
+    }
+}
+
+struct FileURLPayload: Transferable {
+    let url: URL
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation(exporting: \.url)
     }
 }
