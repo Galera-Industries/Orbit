@@ -32,7 +32,6 @@ final class AppIndexer {
             ]
             for loc in locations {
                 let folder = URL(fileURLWithPath: loc, isDirectory: true)
-                // Use contentsOfDirectory to avoid deep traversal which is heavy
                 if let names = try? fm.contentsOfDirectory(atPath: folder.path) {
                     for name in names {
                         if name.hasSuffix(".app") {

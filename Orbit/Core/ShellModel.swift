@@ -11,8 +11,6 @@ import AppKit
 import Carbon
 internal import os
 
-// ResultItem переехал в Contracts.swift
-
 final class ShellModel: ObservableObject {
     // State + Events
     private let eventBus = EventBus()
