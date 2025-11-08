@@ -52,7 +52,7 @@ final class ClipboardModule: ModulePlugin {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.locale = Locale(identifier: "en")
         return formatter.localizedString(for: date, relativeTo: Date())
     }
     

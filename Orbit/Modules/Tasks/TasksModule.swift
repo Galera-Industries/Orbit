@@ -140,7 +140,7 @@ final class TasksModule: ModulePlugin {
             return "Due this week"
         } else if date < now {
             let formatter = RelativeDateTimeFormatter()
-            formatter.locale = Locale(identifier: "ru_RU")
+            formatter.locale = Locale(identifier: "en")
             return "Overdue: \(formatter.localizedString(for: date, relativeTo: now))"
         } else {
             let formatter = DateFormatter()
@@ -151,7 +151,7 @@ final class TasksModule: ModulePlugin {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.locale = Locale(identifier: "en")
         return formatter.localizedString(for: date, relativeTo: Date())
     }
     
