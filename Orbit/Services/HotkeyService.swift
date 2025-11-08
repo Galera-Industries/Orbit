@@ -121,6 +121,7 @@ final class HotkeyService {
 
 enum KeyCode {
     static let v: UInt32 = UInt32(kVK_ANSI_V)      // 9
+    static let t: UInt32 = UInt32(kVK_ANSI_T)      
     static let space: UInt32 = UInt32(kVK_Space)   // 49
     static let one: UInt32 = UInt32(kVK_ANSI_1)
     static let two: UInt32 = UInt32(kVK_ANSI_2)
