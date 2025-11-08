@@ -151,6 +151,7 @@ struct Task: Identifiable, Equatable {
     var priority: TaskPriority?
     var dueDate: Date?
     var completed: Bool
+    var eventIdentifier: String? // Идентификатор события в календаре Apple
     
     init(
         id: UUID = UUID(),
@@ -159,7 +160,8 @@ struct Task: Identifiable, Equatable {
         tags: [String] = [],
         priority: TaskPriority? = nil,
         dueDate: Date? = nil,
-        completed: Bool = false
+        completed: Bool = false,
+        eventIdentifier: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -168,6 +170,7 @@ struct Task: Identifiable, Equatable {
         self.priority = priority
         self.dueDate = dueDate
         self.completed = completed
+        self.eventIdentifier = eventIdentifier
     }
     
     static func from(parsedQuery: ParsedQuery) -> Task {

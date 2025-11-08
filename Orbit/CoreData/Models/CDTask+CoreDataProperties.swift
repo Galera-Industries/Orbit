@@ -14,6 +14,7 @@ extension CDTask {
     @NSManaged public var priority: Int32
     @NSManaged public var dueDate: Date?
     @NSManaged public var completed: Bool
+    @NSManaged public var eventIdentifier: String?
 
 }
 

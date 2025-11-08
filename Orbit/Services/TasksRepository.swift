@@ -7,6 +7,7 @@ extension Notification.Name {
 
 final class TasksRepository: TasksRepositoryProtocol {
     private let coreData: CoreDataProtocol
+    private let calendarService = CalendarService.shared
     private var cachedTasks: [Task] = []
     private var isLoaded: Bool = false
     
@@ -17,9 +18,34 @@ final class TasksRepository: TasksRepositoryProtocol {
     func add(_ task: Task) {
         firstLoad()
         
+        // Сначала добавляем задачу для немедленного отображения
         cachedTasks.append(task)
         coreData.createTask(task)
         NotificationCenter.default.post(name: .taskListChanged, object: nil)
+        
+        // Затем создаем событие в календаре и обновляем задачу
+        let calendarTask: _Concurrency.Task<Void, Never> = _Concurrency.Task { [weak self, task] in
+            guard let self = self else { return }
+            do {
+                let eventIdentifier = try await self.calendarService.createEvent(for: task)
+                // Обновляем задачу с eventIdentifier
+                var updatedTask = task
+                updatedTask.eventIdentifier = eventIdentifier
+                
+                // Обновляем в кэше и CoreData
+                await MainActor.run {
+                    if let index = self.cachedTasks.firstIndex(where: { $0.id == task.id }) {
+                        self.cachedTasks[index] = updatedTask
+                        self.coreData.updateTask(updatedTask)
+                        NotificationCenter.default.post(name: .taskListChanged, object: nil)
+                    }
+                }
+            } catch {
+                // Если не удалось создать событие в календаре, задача уже сохранена
+                print("Failed to create calendar event: \(error.localizedDescription)")
+            }
+        }
+        _ = calendarTask
     }
 
     func getAll() -> [Task] {
@@ -65,6 +91,46 @@ final class TasksRepository: TasksRepositoryProtocol {
 
     func update(_ task: Task) {
         firstLoad()
+        
+        // Обновляем событие в календаре
+        let updateTask: _Concurrency.Task<Void, Never> = _Concurrency.Task { [weak self, task] in
+            guard let self = self else { return }
+            do {
+                if let eventIdentifier = task.eventIdentifier {
+                    // Обновляем существующее событие
+                    let updatedIdentifier = try await self.calendarService.updateEvent(eventIdentifier: eventIdentifier, for: task)
+                    // Если вернулся новый идентификатор (событие было пересоздано), обновляем задачу
+                    if updatedIdentifier != eventIdentifier {
+                        var updatedTask = task
+                        updatedTask.eventIdentifier = updatedIdentifier
+                        await MainActor.run {
+                            if let index = self.cachedTasks.firstIndex(where: { $0.id == task.id }) {
+                                self.cachedTasks[index] = updatedTask
+                            }
+                            self.coreData.updateTask(updatedTask)
+                            NotificationCenter.default.post(name: .taskListChanged, object: nil)
+                        }
+                    }
+                } else {
+                    // Создаем новое событие, если его не было
+                    let newEventIdentifier = try await self.calendarService.createEvent(for: task)
+                    var updatedTask = task
+                    updatedTask.eventIdentifier = newEventIdentifier
+                    
+                    await MainActor.run {
+                        if let index = self.cachedTasks.firstIndex(where: { $0.id == task.id }) {
+                            self.cachedTasks[index] = updatedTask
+                        }
+                        self.coreData.updateTask(updatedTask)
+                        NotificationCenter.default.post(name: .taskListChanged, object: nil)
+                    }
+                }
+            } catch {
+                print("Failed to update calendar event: \(error.localizedDescription)")
+            }
+        }
+        _ = updateTask
+        
         if let index = cachedTasks.firstIndex(where: { $0.id == task.id }) {
             cachedTasks[index] = task
             cachedTasks.sort { task1, task2 in
@@ -80,6 +146,20 @@ final class TasksRepository: TasksRepositoryProtocol {
 
     func delete(_ task: Task) {
         firstLoad()
+        
+        // Удаляем событие из календаря
+        if let eventIdentifier = task.eventIdentifier {
+            let deleteTask: _Concurrency.Task<Void, Never> = _Concurrency.Task { [weak self, eventIdentifier] in
+                guard let self = self else { return }
+                do {
+                    try await self.calendarService.deleteEvent(eventIdentifier: eventIdentifier)
+                } catch {
+                    print("Failed to delete calendar event: \(error.localizedDescription)")
+                }
+            }
+            _ = deleteTask
+        }
+        
         coreData.deleteTask(task)
         if let index = cachedTasks.firstIndex(where: { $0.id == task.id }) {
             cachedTasks.remove(at: index)
@@ -89,6 +169,23 @@ final class TasksRepository: TasksRepositoryProtocol {
 
     func deleteAll() {
         firstLoad()
+        
+        // Удаляем все события из календаря
+        let tasksToDelete = cachedTasks
+        let deleteAllTask: _Concurrency.Task<Void, Never> = _Concurrency.Task { [weak self] in
+            guard let self = self else { return }
+            for task in tasksToDelete {
+                if let eventIdentifier = task.eventIdentifier {
+                    do {
+                        try await self.calendarService.deleteEvent(eventIdentifier: eventIdentifier)
+                    } catch {
+                        print("Failed to delete calendar event for task \(task.id): \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+        _ = deleteAllTask
+        
         coreData.deleteAllTasks()
         cachedTasks.removeAll()
         NotificationCenter.default.post(name: .taskListChanged, object: nil)
@@ -104,6 +201,21 @@ final class TasksRepository: TasksRepositoryProtocol {
                 timer.cancelTimer(for: task.id)
             }
         }
+        
+        // Удаляем события из календаря для всех завершенных задач
+        let deleteCompletedTask: _Concurrency.Task<Void, Never> = _Concurrency.Task { [weak self, completedTasks] in
+            guard let self = self else { return }
+            for task in completedTasks {
+                if let eventIdentifier = task.eventIdentifier {
+                    do {
+                        try await self.calendarService.deleteEvent(eventIdentifier: eventIdentifier)
+                    } catch {
+                        print("Failed to delete calendar event for task \(task.id): \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+        _ = deleteCompletedTask
         
         for task in completedTasks {
             coreData.deleteTask(task)
@@ -145,7 +257,8 @@ final class TasksRepository: TasksRepositoryProtocol {
             tags: tags,
             priority: priority,
             dueDate: cdTask.dueDate,
-            completed: cdTask.completed
+            completed: cdTask.completed,
+            eventIdentifier: cdTask.eventIdentifier
         )
     }
 }
