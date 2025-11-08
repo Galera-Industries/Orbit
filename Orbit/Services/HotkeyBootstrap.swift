@@ -24,6 +24,13 @@ enum HotkeyBootstrap {
             windowManager.toggleAndFocus()
         }
         
+        // ⌘⇧T - открыть создание задачи
+        HotkeyService.shared.register(keyCode: KeyCode.t, carbonModifiers: CarbonMods.cmdShift) {
+            L.hotkey.info("⌘⇧T -> create new task")
+            NotificationCenter.default.post(name: .showCreateTaskView, object: nil)
+            windowManager.showAndFocus()
+        }
+        
         // ⌘⇧V - открыть окно в режиме Clipboard
         HotkeyService.shared.register(keyCode: KeyCode.v, carbonModifiers: CarbonMods.cmdShift) {
             L.hotkey.info("⌘⇧V -> open Clipboard mode")
