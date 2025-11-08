@@ -116,6 +116,7 @@ final class CoreDataManager: CoreDataProtocol {
         cdTask.priority = Int32(task.priority?.rawValue ?? 0)
         cdTask.dueDate = task.dueDate
         cdTask.completed = task.completed
+        cdTask.eventIdentifier = task.eventIdentifier
         CoreDataStack.shared.saveContext(for: Models.tasks.rawValue)
     }
     
@@ -154,6 +155,7 @@ final class CoreDataManager: CoreDataProtocol {
         cdTask.priority = Int32(task.priority?.rawValue ?? 0)
         cdTask.dueDate = task.dueDate
         cdTask.completed = task.completed
+        cdTask.eventIdentifier = task.eventIdentifier
         CoreDataStack.shared.saveContext(for: Models.tasks.rawValue)
     }
     
