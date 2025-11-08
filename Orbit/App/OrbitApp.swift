@@ -36,6 +36,7 @@ struct OrbitApp: App {
                     
                     windowManager.window = window
                     windowManager.enableAutoHideOnBlur()
+                    shell.window = windowManager
                 })
                 .onAppear {
                     // Глобальные хоткеи (обновлённая сигнатура с shell)
