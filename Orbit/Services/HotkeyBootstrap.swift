@@ -56,6 +56,24 @@ enum HotkeyBootstrap {
                 shell.isActionsMenuOpen.toggle()
             }
         }
+        
+        // ⌘⌥S - Выбрать область для скриншотов
+        HotkeyService.shared.register(keyCode: KeyCode.s, carbonModifiers: CarbonMods.cmdOpt) {
+            L.hotkey.info("⌘⌥S -> Select Screenshot Area")
+            ScreenshotManager.shared.selectArea()
+        }
+        
+        // ⌘⌥C - Сделать скриншот и отправить в DeepSeek
+        HotkeyService.shared.register(keyCode: KeyCode.c, carbonModifiers: CarbonMods.cmdOpt) {
+            L.hotkey.info("⌘⌥C -> Capture Screenshot and Send to DeepSeek")
+            ScreenshotManager.shared.captureAndSend()
+        }
+        
+        // ⌘⌥M - Извлечь содержимое <div role="main"> из открытой страницы
+        HotkeyService.shared.register(keyCode: KeyCode.m, carbonModifiers: CarbonMods.cmdOpt) {
+            L.hotkey.info("⌘⌥M -> Extract main content from browser")
+            WebContentExtractor.shared.extractMainContent()
+        }
     }
     
     static func registerClipboardHotkeys(shell: ShellModel) -> [UInt32] {

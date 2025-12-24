@@ -15,6 +15,7 @@ enum AppMode: String, CaseIterable {
     case clipboard
     case tasks
     case pomodoro
+    case settings
 }
 
 // MARK: - Приоритет/Дедлайн для задач (пример парсинга токенов)

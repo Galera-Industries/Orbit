@@ -37,6 +37,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             keyEquivalent: ""
         )
         toggle.target = self
+        
+        let settings = NSMenuItem(
+            title: "Screenshot Settings",
+            action: #selector(showSettings),
+            keyEquivalent: ""
+        )
+        settings.target = self
+        
         let quit = NSMenuItem(
             title: "Quit",
             action: #selector(quit),
@@ -46,6 +54,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         quit.target = self
         
         menu.addItem(toggle)
+        menu.addItem(.separator())
+        menu.addItem(settings)
         menu.addItem(.separator())
         menu.addItem(quit)
         menu.delegate = self
@@ -75,7 +85,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
     
     @objc
+    private func showSettings() {
+        NotificationCenter.default.post(name: .showScreenshotSettings, object: nil)
+    }
+    
+    @objc
     private func quit() {
         NSApp.terminate(nil)
     }
+}
+
+extension Notification.Name {
+    static let showScreenshotSettings = Notification.Name("showScreenshotSettings")
 }

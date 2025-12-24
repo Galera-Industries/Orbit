@@ -136,6 +136,9 @@ enum KeyCode {
     static let x: UInt32 = UInt32(kVK_ANSI_X)
     static let enter: UInt32 = UInt32(kVK_Return)
     static let k: UInt32 = UInt32(kVK_ANSI_K)
+    static let s: UInt32 = UInt32(kVK_ANSI_S)
+    static let c: UInt32 = UInt32(kVK_ANSI_C)
+    static let m: UInt32 = UInt32(kVK_ANSI_M)
 }
 enum CarbonMods {
     static let cmd: UInt32 = UInt32(cmdKey)

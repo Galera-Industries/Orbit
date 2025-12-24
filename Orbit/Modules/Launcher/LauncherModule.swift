@@ -58,6 +58,9 @@ final class LauncherModule: ModulePlugin {
             ) {
                 NotificationCenter.default.post(name: .showStatsView, object: nil)
             },
+            .init(title: "Settings", subtitle: "Configure app settings", accessory: "↩︎") { [weak self] in
+                self?.shellModel?.switchMode(.settings)
+            },
         ]
         
         let trimmed = q.trimmingCharacters(in: .whitespacesAndNewlines)

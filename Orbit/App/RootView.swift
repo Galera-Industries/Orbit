@@ -21,6 +21,7 @@ struct RootView: View {
     @State private var showPomodoroView = false
     @State private var selectedPomodoroTask: Task?
     @State private var showStatsView = false
+    @State private var showScreenshotSettings = false
     @State private var win: NSWindow?
 
     
@@ -78,6 +79,8 @@ struct RootView: View {
                         QuickLauncherScroll()
                     } else if shell.currentMode == .clipboard || shell.currentMode == .pomodoro {
                         ClipboardPreviewHStack()
+                    } else if shell.currentMode == .settings {
+                        QuickLauncherScroll()
                     } else {
                         TasksListView(context: shell.context)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -140,6 +143,14 @@ struct RootView: View {
             PomodoroStatsView(onClose: {
                 showStatsView = false
             })
+        }
+        
+        .onReceive(NotificationCenter.default.publisher(for: .showScreenshotSettings)) { _ in
+            showScreenshotSettings = true
+        }
+        
+        .sheet(isPresented: $showScreenshotSettings) {
+            ScreenshotSettingsView()
         }
     }
     
@@ -566,6 +577,8 @@ struct BottomPanel: View {
         case .tasks:
             return []
         case .pomodoro:
+            return []
+        case .settings:
             return []
         }
     }

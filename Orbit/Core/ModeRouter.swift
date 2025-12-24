@@ -28,6 +28,10 @@ final class ModeRouter {
         } else if trimmed.lowercased().hasPrefix("pomo") {
             mode = .pomodoro
             body = String(trimmed.dropFirst("pomo".count)).trimmingCharacters(in: .whitespaces)
+        } else if trimmed.lowercased().hasPrefix("settings") || trimmed.lowercased().hasPrefix("prefs") || trimmed.lowercased().hasPrefix("config") {
+            mode = .settings
+            let cut = trimmed.lowercased().hasPrefix("settings") ? "settings".count : (trimmed.lowercased().hasPrefix("prefs") ? "prefs".count : "config".count)
+            body = String(trimmed.dropFirst(cut)).trimmingCharacters(in: .whitespaces)
         } else if trimmed.isEmpty {
             mode = lastMode == .tasks ? .launcher : lastMode
             body = ""

@@ -40,6 +40,7 @@ final class ShellModel: ObservableObject {
         registry.register(LauncherModule())
         registry.register(ClipboardModule())
         registry.register(TasksModule())
+        registry.register(SettingsModule())
         //registry.register(TasksStatsModule())
         // НЕ РАСКОМЕНТИРОВАТЬ СВЕРХУ АААА ОШИБКА БУДЕТ
         registry.setShellModel(self)
