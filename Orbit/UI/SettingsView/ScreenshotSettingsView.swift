@@ -10,6 +10,7 @@ import SwiftUI
 struct ScreenshotSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var deepSeekPrompt: String = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено на этом скриншоте?"
+    @State private var systemMessage: String = UserDefaults.standard.string(forKey: "systemMessage") ?? ""
     @State private var deepSeekApiKey: String = UserDefaults.standard.string(forKey: "deepseekApiKey") ?? ""
     @State private var telegramBotToken: String = UserDefaults.standard.string(forKey: "telegramBotToken") ?? ""
     @State private var telegramChatID: String = UserDefaults.standard.string(forKey: "telegramChatID") ?? ""
@@ -34,9 +35,10 @@ struct ScreenshotSettingsView: View {
                     .padding(.horizontal, 20)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        yandexTokenSection
+                        chatGPTTokenSection
                         deepSeekApiKeySection
                         promptSection
+                        systemMessageSection
                         telegramBotTokenSection
                         telegramChatIDSection
                         vkAccessTokenSection
@@ -82,11 +84,11 @@ struct ScreenshotSettingsView: View {
         .padding(.bottom, 16)
     }
     
-    private var yandexTokenSection: some View {
-        SettingsSection(title: "API Token для анализа скриншотов", subtitle: "GPT-5.2 через Yandex") {
-            SecureField("Введите ваш Yandex OAuth токен (SOY_TOKEN)", text: Binding(
-                get: { UserDefaults.standard.string(forKey: "yandexToken") ?? "" },
-                set: { UserDefaults.standard.set($0, forKey: "yandexToken") }
+    private var chatGPTTokenSection: some View {
+        SettingsSection(title: "API Token для анализа скриншотов", subtitle: "ChatGPT через got_proxy") {
+            SecureField("Введите ваш OpenAI API ключ", text: Binding(
+                get: { UserDefaults.standard.string(forKey: "chatGPTToken") ?? "" },
+                set: { UserDefaults.standard.set($0, forKey: "chatGPTToken") }
             ))
             .textFieldStyle(.plain)
             .font(.system(size: 13))
@@ -98,10 +100,10 @@ struct ScreenshotSettingsView: View {
             )
             
             VStack(alignment: .leading, spacing: 4) {
-                Text("Этот токен используется для отправки скриншотов в GPT-5.2 через Yandex API")
+                Text("Этот токен используется для отправки скриншотов в ChatGPT через got_proxy (5.34.212.145:8000)")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
-                Text("Формат: OAuth токен (например, из переменной $SOY_TOKEN)")
+                Text("Формат: OpenAI API ключ (начинается с sk-)")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary.opacity(0.8))
             }
@@ -154,7 +156,7 @@ struct ScreenshotSettingsView: View {
     }
     
     private var promptSection: some View {
-        SettingsSection(title: "Промпт для анализа") {
+        SettingsSection(title: "Промпт для анализа", subtitle: "User message") {
             TextEditor(text: $deepSeekPrompt)
                 .frame(height: 100)
                 .font(.system(size: 13))
@@ -168,7 +170,28 @@ struct ScreenshotSettingsView: View {
                     UserDefaults.standard.set(newValue, forKey: "deepseekPrompt")
                 }
             
-            Text("Этот промпт будет использоваться при отправке каждого скриншота")
+            Text("Этот промпт будет использоваться как user message при отправке каждого скриншота")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var systemMessageSection: some View {
+        SettingsSection(title: "System Message", subtitle: "Опционально") {
+            TextEditor(text: $systemMessage)
+                .frame(height: 100)
+                .font(.system(size: 13))
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.06)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+                )
+                .onChange(of: systemMessage) { newValue in
+                    UserDefaults.standard.set(newValue, forKey: "systemMessage")
+                }
+            
+            Text("Системное сообщение для настройки поведения модели (опционально). Если пусто, system message не будет отправляться.")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
         }

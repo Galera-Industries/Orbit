@@ -205,16 +205,31 @@ final class WebContentExtractor {
                     try
                         set jsResult to do JavaScript "
                             (function() {
+                                // Сначала пытаемся найти div main
                                 const mainDiv = document.querySelector('div[role=\\\"main\\\"]');
                                 if (mainDiv) {
                                     const result = {
+                                        type: 'main',
                                         url: window.location.href,
                                         title: document.title,
-                                        content: mainDiv.innerText || mainDiv.textContent || '',
-                                        html: mainDiv.innerHTML || ''
+                                        html: mainDiv.outerHTML || ''
                                     };
                                     return JSON.stringify(result);
                                 }
+                                
+                                // Если main не найден, ищем div'ы с id, начинающимся на 'question'
+                                const questionDivs = Array.from(document.querySelectorAll('div[id^=\\\"question\\\"]'));
+                                if (questionDivs.length > 0) {
+                                    const questionsHtml = questionDivs.map(div => div.outerHTML).join('');
+                                    const result = {
+                                        type: 'questions',
+                                        url: window.location.href,
+                                        title: document.title,
+                                        html: questionsHtml
+                                    };
+                                    return JSON.stringify(result);
+                                }
+                                
                                 return null;
                             })();
                         "
@@ -222,7 +237,7 @@ final class WebContentExtractor {
                         if jsResult is not null and jsResult is not "" then
                             return jsResult
                         else
-                            return "ERROR: Main div not found"
+                            return "ERROR: Main div and questions not found"
                         end if
                     on error errMsg
                         return "ERROR: " & errMsg
@@ -270,16 +285,31 @@ final class WebContentExtractor {
                     try
                         set jsResult to execute javascript "
                             (function() {
+                                // Сначала пытаемся найти div main
                                 const mainDiv = document.querySelector('div[role=\\\"main\\\"]');
                                 if (mainDiv) {
                                     const result = {
+                                        type: 'main',
                                         url: window.location.href,
                                         title: document.title,
-                                        content: mainDiv.innerText || mainDiv.textContent || '',
-                                        html: mainDiv.innerHTML || ''
+                                        html: mainDiv.outerHTML || ''
                                     };
                                     return JSON.stringify(result);
                                 }
+                                
+                                // Если main не найден, ищем div'ы с id, начинающимся на 'question'
+                                const questionDivs = Array.from(document.querySelectorAll('div[id^=\\\"question\\\"]'));
+                                if (questionDivs.length > 0) {
+                                    const questionsHtml = questionDivs.map(div => div.outerHTML).join('');
+                                    const result = {
+                                        type: 'questions',
+                                        url: window.location.href,
+                                        title: document.title,
+                                        html: questionsHtml
+                                    };
+                                    return JSON.stringify(result);
+                                }
+                                
                                 return null;
                             })();
                         "
@@ -287,7 +317,7 @@ final class WebContentExtractor {
                         if jsResult is not null and jsResult is not "" then
                             return jsResult
                         else
-                            return "ERROR: Main div not found"
+                            return "ERROR: Main div and questions not found"
                         end if
                     on error errMsg
                         return "ERROR: " & errMsg
@@ -402,48 +432,47 @@ final class WebContentExtractor {
                     self?.showSafariJavaScriptAlert()
                 }
             } else {
-                // Если ошибка не связана с настройками Safari, делаем fallback на скриншот
-                print("⚠️ Не удалось извлечь текст, делаем скриншот...")
-                fallbackToScreenshot()
+                // Если ошибка не связана с настройками Safari и не найдены ни main, ни questions, делаем fallback на скриншот
+                if result.contains("Main div and questions not found") {
+                    print("⚠️ Не найдены ни main div, ни question divs, делаем скриншот...")
+                    fallbackToScreenshot()
+                } else {
+                    print("⚠️ Не удалось извлечь текст, делаем скриншот...")
+                    fallbackToScreenshot()
+                }
             }
             return
         }
         
-        // Пытаемся распарсить JSON, если результат был возвращен как JSON
-        var pageURL: String?
-        var pageTitle: String?
-        var content: String?
-        var html: String?
-        
-        // Убираем возможные лишние кавычки и пробелы
+        // Пытаемся распарсить JSON
         let cleanedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        if let data = cleanedResult.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            pageURL = json["url"] as? String
-            pageTitle = json["title"] as? String
-            content = json["content"] as? String
-            html = json["html"] as? String
-        } else {
-            // Если это не JSON, попробуем обработать как обычный текст
-            // Возможно, это уже извлеченный текст
-            content = cleanedResult
+        guard let data = cleanedResult.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let contentType = json["type"] as? String,
+              let html = json["html"] as? String, !html.isEmpty else {
+            print("⚠️ Не удалось распарсить JSON, делаем скриншот...")
+            fallbackToScreenshot()
+            return
         }
         
-        // Используем извлеченный текст (предпочтительно) или HTML
-        let textToSave = content ?? html ?? cleanedResult
+        let pageURL = json["url"] as? String
+        let pageTitle = json["title"] as? String
         
-        // Если это HTML, извлекаем только текст
-        let cleanText: String
-        if let html = html, !html.isEmpty {
-            cleanText = extractTextFromHTML(html)
+        // Сохраняем HTML в файл (без очистки)
+        saveToFile(content: html, url: pageURL, title: pageTitle)
+        
+        // Обрабатываем в зависимости от типа
+        if contentType == "questions" {
+            // Для questions отправляем HTML напрямую в DeepSeek для извлечения вопросов
+            sendQuestionsToAI(html: html)
+        } else if contentType == "main" {
+            // Для main отправляем HTML напрямую в AI (без очистки)
+            sendToAI(content: html, isHTML: true)
         } else {
-            cleanText = textToSave
+            print("⚠️ Неизвестный тип контента: \(contentType), делаем скриншот...")
+            fallbackToScreenshot()
         }
-        
-        // Сохраняем в файл и отправляем в AI
-        saveToFile(content: cleanText, url: pageURL, title: pageTitle)
-        sendToAI(content: cleanText)
     }
     
     private func extractTextFromHTML(_ html: String) -> String {
@@ -492,13 +521,13 @@ final class WebContentExtractor {
     
     // MARK: - AI Processing
     
-    /// Отправляет извлеченный текст в AI сервисы
-    private func sendToAI(content: String) {
+    /// Отправляет извлеченный HTML/текст в AI сервисы
+    private func sendToAI(content: String, isHTML: Bool = false) {
         // Промпт из screenshot settings
         let userPrompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
         
         // ШАГ 1: Отправляем в DeepSeek с промптом "извлеки отсюда условия заданий и варианты ответов"
-        let extractionPrompt = "извлеки отсюда условия заданий и варианты ответов \(content)"
+        let extractionPrompt = "извлеки отсюда условия заданий и варианты ответов, также не забудь указать какие вопросы имеют множественный, а какие олиночный выбор ответа:\(content)"
         
         // Проверяем, есть ли ключ DeepSeek для извлечения
         guard deepSeekService.hasDeepSeekKey else {
@@ -509,7 +538,7 @@ final class WebContentExtractor {
         }
         
         print("📤 ШАГ 1: Отправляю текст в DeepSeek (извлечение заданий)...")
-        deepSeekService.sendTextToDeepSeek(prompt: extractionPrompt) { [weak self] result in
+        deepSeekService.sendTextToDeepSeek(prompt: extractionPrompt, includeSystemMessage: false) { [weak self] result in
             guard let self = self else { return }
             
             switch result {
@@ -528,6 +557,43 @@ final class WebContentExtractor {
         }
     }
     
+    /// Отправляет HTML вопросов в DeepSeek для извлечения вопросов и вариантов ответов
+    private func sendQuestionsToAI(html: String) {
+        // Промпт из screenshot settings
+        let userPrompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
+        
+        // Отправляем HTML в DeepSeek с промптом "извлеки отсюда вопросы и варианты ответов"
+        // НЕ убираем HTML мусор, отправляем как есть
+        let extractionPrompt = "извлеки отсюда вопросы и варианты ответов\n\n\(html)"
+        
+        // Проверяем, есть ли ключ DeepSeek для извлечения
+        guard deepSeekService.hasDeepSeekKey else {
+            print("⚠️ Нет ключа DeepSeek для извлечения вопросов")
+            // Если нет ключа DeepSeek, отправляем HTML напрямую в ChatGPT и DeepSeek
+            sendToChatGPTAndDeepSeek(content: html, userPrompt: userPrompt)
+            return
+        }
+        
+        print("📤 Отправляю HTML вопросов в DeepSeek (извлечение вопросов и вариантов ответов)...")
+        deepSeekService.sendTextToDeepSeek(prompt: extractionPrompt, includeSystemMessage: false) { [weak self] result in
+            guard let self = self else { return }
+            
+            switch result {
+            case .success(let extractedText):
+                print("✅ DeepSeek (извлечение вопросов) ответ получен: \(extractedText.prefix(100))...")
+                
+                // Используем извлечённый текст для отправки в ChatGPT и DeepSeek с пользовательским промптом
+                self.sendToChatGPTAndDeepSeek(content: extractedText, userPrompt: userPrompt)
+                
+            case .failure(let error):
+                print("❌ DeepSeek (извлечение вопросов) ошибка: \(error)")
+                // Если извлечение не удалось, отправляем исходный HTML
+                print("⚠️ Использую исходный HTML для отправки в ChatGPT и DeepSeek")
+                self.sendToChatGPTAndDeepSeek(content: html, userPrompt: userPrompt)
+            }
+        }
+    }
+    
     /// Отправляет текст в ChatGPT и DeepSeek с пользовательским промптом
     private func sendToChatGPTAndDeepSeek(content: String, userPrompt: String) {
         // Промпт для Yandex и DeepSeek (используем пользовательский промпт из screenshot settings)
@@ -540,11 +606,11 @@ final class WebContentExtractor {
         
         let group = DispatchGroup()
         
-        // ШАГ 2: Отправляем в Yandex (GPT-5.2-chat-latest) если есть токен (с пользовательским промптом)
-        if deepSeekService.hasYandexToken {
+        // ШАГ 2: Отправляем в ChatGPT через got_proxy если есть токен (с пользовательским промптом)
+        if deepSeekService.hasChatGPTToken {
             group.enter()
-            print("📤 ШАГ 2: Отправляю текст в Yandex (GPT-5.2-chat-latest) с пользовательским промптом...")
-            deepSeekService.sendTextToYandex(prompt: finalPrompt) { result in
+            print("📤 ШАГ 2: Отправляю текст в ChatGPT (got_proxy) с пользовательским промптом...")
+            deepSeekService.sendTextToChatGPT(prompt: finalPrompt) { result in
                 switch result {
                 case .success(let response):
                     chatgptResponse = response

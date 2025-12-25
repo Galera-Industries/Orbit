@@ -122,8 +122,8 @@ final class ScreenshotManager {
         let prompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
         
         // Проверяем наличие хотя бы одного ключа
-        guard deepSeekService.hasYandexToken || deepSeekService.hasDeepSeekKey else {
-            print("⚠️ Нет доступных API ключей (Yandex или DeepSeek)")
+        guard deepSeekService.hasChatGPTToken || deepSeekService.hasDeepSeekKey else {
+            print("⚠️ Нет доступных API ключей (ChatGPT или DeepSeek)")
             return
         }
         
@@ -135,11 +135,11 @@ final class ScreenshotManager {
         
         let group = DispatchGroup()
         
-        // Отправляем в Yandex (ChatGPT через GPT-5.2)
-        if deepSeekService.hasYandexToken {
+        // Отправляем в ChatGPT через got_proxy
+        if deepSeekService.hasChatGPTToken {
             group.enter()
-            print("📤 Отправляю скриншот в Yandex (ChatGPT)...")
-            deepSeekService.sendToYandex(imageBase64: base64String, prompt: prompt) { result in
+            print("📤 Отправляю скриншот в ChatGPT (got_proxy)...")
+            deepSeekService.sendToChatGPT(imageBase64: base64String, prompt: prompt) { result in
                 switch result {
                 case .success(let response):
                     chatgptResponse = response
