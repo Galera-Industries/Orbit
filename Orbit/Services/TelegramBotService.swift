@@ -10,8 +10,11 @@ import Foundation
 final class TelegramBotService {
     static let shared = TelegramBotService()
     
-    private let token = "6627828280:AAE0QVhYUgDSgs3-ohv6GM9YlybLAfi_D0U"
     private let baseURL = "https://api.telegram.org/bot"
+    
+    private var token: String? {
+        UserDefaults.standard.string(forKey: "telegramBotToken")
+    }
     
     private var chatID: String? {
         UserDefaults.standard.string(forKey: "telegramChatID")
@@ -21,6 +24,11 @@ final class TelegramBotService {
     
     /// Отправляет сообщение в Telegram
     func sendMessage(_ text: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let token = token, !token.isEmpty else {
+            completion(.failure(TelegramError.tokenNotSet))
+            return
+        }
+        
         guard let chatID = chatID, !chatID.isEmpty else {
             // Если chatID не установлен, попробуем получить его из обновлений
             fetchChatID { [weak self] result in
@@ -46,8 +54,8 @@ final class TelegramBotService {
         
         let body: [String: Any] = [
             "chat_id": chatID,
-            "text": text,
-            "parse_mode": "Markdown"
+            "text": text
+            // Убираем parse_mode для избежания ошибок парсинга Markdown
         ]
         
         do {
@@ -75,6 +83,11 @@ final class TelegramBotService {
     
     /// Проверяет, что бот работает
     func checkBotStatus(completion: @escaping (Result<Bool, Error>) -> Void) {
+        guard let token = token, !token.isEmpty else {
+            completion(.failure(TelegramError.tokenNotSet))
+            return
+        }
+        
         let urlString = "\(baseURL)\(token)/getMe"
         guard let url = URL(string: urlString) else {
             completion(.failure(TelegramError.invalidURL))
@@ -107,6 +120,11 @@ final class TelegramBotService {
     
     /// Получает обновления от бота (для определения chat_id)
     func getUpdates(completion: @escaping (Result<[[String: Any]], Error>) -> Void) {
+        guard let token = token, !token.isEmpty else {
+            completion(.failure(TelegramError.tokenNotSet))
+            return
+        }
+        
         let urlString = "\(baseURL)\(token)/getUpdates?offset=-10"
         guard let url = URL(string: urlString) else {
             completion(.failure(TelegramError.invalidURL))
@@ -178,6 +196,7 @@ enum TelegramError: LocalizedError {
     case noData
     case invalidResponse
     case httpError
+    case tokenNotSet
     case chatIDNotSet
     case botError(String)
     
@@ -191,6 +210,8 @@ enum TelegramError: LocalizedError {
             return "Неверный формат ответа"
         case .httpError:
             return "Ошибка HTTP запроса"
+        case .tokenNotSet:
+            return "Telegram Bot Token не установлен. Укажите токен в настройках скриншотов"
         case .chatIDNotSet:
             return "Chat ID не установлен. Отправьте любое сообщение боту в Telegram"
         case .botError(let message):

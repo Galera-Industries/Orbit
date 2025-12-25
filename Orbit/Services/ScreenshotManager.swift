@@ -15,6 +15,7 @@ final class ScreenshotManager {
     private let screenshotService = ScreenshotService.shared
     private let deepSeekService = DeepSeekService.shared
     private let telegramService = TelegramBotService.shared
+    private let vkService = VKService.shared
     
     private init() {}
     
@@ -115,7 +116,7 @@ final class ScreenshotManager {
         let enableAISending = UserDefaults.standard.bool(forKey: "enableAISending")
 //        guard enableAISending else {
 //            print("⏸️ AI отключен, скриншот сохранён")
-//            return    
+//            return
 //        }
         
         let prompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
@@ -151,52 +152,27 @@ final class ScreenshotManager {
             }
         }
         
-        // Отправляем в DeepSeek (через бэкенд OCR)
-        if deepSeekService.hasDeepSeekKey {
-            group.enter()
-            print("📤 Отправляю скриншот в DeepSeek (через бэкенд OCR)...")
-            deepSeekService.sendToDeepSeekViaBackend(imageBase64: base64String, prompt: prompt) { result in
-                switch result {
-                case .success(let response):
-                    deepseekResponse = response
-                    print("✅ DeepSeek ответ получен: \(response.prefix(100))...")
-                case .failure(let error):
-                    deepseekError = error
-                    print("❌ DeepSeek ошибка: \(error)")
-                }
-                group.leave()
-            }
-        }
         
         // Ждем завершения всех запросов
         group.notify(queue: .main) { [weak self] in
             guard let self = self else { return }
             
-            // Отправляем ответы в Telegram (первое сообщение от ChatGPT, второе от DeepSeek)
+            // Отправляем отдельные ответы в Telegram и VK
             if let chatgpt = chatgptResponse {
-                print("📱 Отправляю ответ ChatGPT в Telegram...")
-                self.telegramService.sendMessage("🤖 *ChatGPT*\n\n\(chatgpt)") { result in
-                    switch result {
-                    case .success:
-                        print("✅ ChatGPT ответ отправлен в Telegram")
-                    case .failure(let error):
-                        print("❌ Ошибка отправки ChatGPT в Telegram: \(error)")
-                    }
-                }
+                self.sendToMessengers(message: "🤖 *ChatGPT*\n\n\(chatgpt)", serviceName: "ChatGPT")
             }
             
             if let deepseek = deepseekResponse {
                 // Небольшая задержка между сообщениями, чтобы они шли по порядку
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    print("📱 Отправляю ответ DeepSeek в Telegram...")
-                    self.telegramService.sendMessage("🔵 *DeepSeek*\n\n\(deepseek)") { result in
-                        switch result {
-                        case .success:
-                            print("✅ DeepSeek ответ отправлен в Telegram")
-                        case .failure(let error):
-                            print("❌ Ошибка отправки DeepSeek в Telegram: \(error)")
-                        }
-                    }
+                    self.sendToMessengers(message: "🔵 *DeepSeek*\n\n\(deepseek)", serviceName: "DeepSeek")
+                }
+            }
+            
+            // Отправляем комбинированное сообщение в VK после небольшой задержки
+            if chatgptResponse != nil || deepseekResponse != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.sendCombinedMessageToVK(chatgpt: chatgptResponse, deepseek: deepseekResponse)
                 }
             }
             
@@ -234,18 +210,97 @@ final class ScreenshotManager {
     // Используем typealias для удобства
     typealias ScreenshotArea = ScreenshotAreaSelector.ScreenshotArea
     
+    /// Отправляет сообщение в Telegram и VK (если настроены)
+    private func sendToMessengers(message: String, serviceName: String) {
+        // Отправляем в Telegram
+        print("📱 Отправляю ответ \(serviceName) в Telegram...")
+        telegramService.sendMessage(message) { result in
+            switch result {
+            case .success:
+                print("✅ \(serviceName) ответ отправлен в Telegram")
+            case .failure(let error):
+                print("❌ Ошибка отправки \(serviceName) в Telegram: \(error)")
+            }
+        }
+        
+        // Отправляем в VK (отдельное сообщение)
+        print("📱 Отправляю ответ \(serviceName) в VK...")
+        vkService.sendMessage(message.replacingOccurrences(of: "*", with: "")) { result in
+            switch result {
+            case .success:
+                print("✅ \(serviceName) ответ отправлен в VK")
+            case .failure(let error):
+                print("❌ Ошибка отправки \(serviceName) в VK: \(error)")
+            }
+        }
+    }
+    
+    /// Отправляет комбинированное сообщение с двумя столбцами в VK
+    private func sendCombinedMessageToVK(chatgpt: String?, deepseek: String?) {
+        // Формируем сообщение с двумя столбцами
+        var combinedMessage = ""
+        
+        if let chatgpt = chatgpt, let deepseek = deepseek {
+            // Оба ответа есть - формируем столбцы построчно
+            let chatgptLines = chatgpt.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            let deepseekLines = deepseek.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            
+            let maxLines = max(chatgptLines.count, deepseekLines.count)
+            var lines: [String] = []
+            
+            for i in 0..<maxLines {
+                let chatgptLine = i < chatgptLines.count ? chatgptLines[i] : ""
+                let deepseekLine = i < deepseekLines.count ? deepseekLines[i] : ""
+                
+                if !chatgptLine.isEmpty && !deepseekLine.isEmpty {
+                    lines.append("\(chatgptLine) | \(deepseekLine)")
+                } else if !chatgptLine.isEmpty {
+                    lines.append(chatgptLine)
+                } else if !deepseekLine.isEmpty {
+                    lines.append(deepseekLine)
+                }
+            }
+            
+            combinedMessage = lines.joined(separator: "\n")
+        } else if let chatgpt = chatgpt {
+            combinedMessage = chatgpt
+        } else if let deepseek = deepseek {
+            combinedMessage = deepseek
+        } else {
+            return // Нет данных для отправки
+        }
+        
+        print("📱 Отправляю комбинированное сообщение (столбцы) в VK...")
+        vkService.sendMessage(combinedMessage) { result in
+            switch result {
+            case .success:
+                print("✅ Комбинированное сообщение отправлено в VK")
+            case .failure(let error):
+                print("❌ Ошибка отправки комбинированного сообщения в VK: \(error)")
+            }
+        }
+    }
+    
     private func saveResponse(_ response: String, type: String = "deepseek") {
-        let defaults = UserDefaults(suiteName: "group.com.orbit.app") ?? .standard
+        // Сохраняем в стандартный UserDefaults (так панель сможет их прочитать напрямую)
+        let defaults = UserDefaults.standard
         let key = type == "chatgpt" ? "chatgptResponses" : "deepseekResponses"
         var responses = defaults.stringArray(forKey: key) ?? []
-        responses.insert(response, at: 0)
+        responses.insert(response, at: 0) // Вставляем в начало (самый свежий ответ)
         if responses.count > 50 { responses = Array(responses.prefix(50)) }
         defaults.set(responses, forKey: key)
+        
+        // Также сохраняем в App Group для совместимости с Apple Watch (если есть)
+        if let groupDefaults = UserDefaults(suiteName: "group.com.orbit.app") {
+            groupDefaults.set(responses, forKey: key)
+        }
+        
+        print("✅ Ответ сохранен в UserDefaults: \(type), длина: \(response.count) символов")
         NotificationCenter.default.post(name: .newDeepSeekResponse, object: response)
     }
     
     private func sendResponsesToBackend(chatgpt: String?, deepseek: String?) {
-        guard let url = URL(string: "http://localhost:8000/responses") else {
+        guard let url = URL(string: "http://158.160.149.37:8000/responses") else {
             print("⚠️ Неверный URL бэкенда")
             return
         }
@@ -254,9 +309,12 @@ final class ScreenshotManager {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        let channelNumber = UserDefaults.standard.string(forKey: "watchChannelNumber") ?? "1"
+        
         let body: [String: Any?] = [
             "chatgpt": chatgpt,
-            "deepseek": deepseek
+            "deepseek": deepseek,
+            "channel": channelNumber
         ]
         
         do {
@@ -285,3 +343,4 @@ final class ScreenshotManager {
 extension Notification.Name {
     static let newDeepSeekResponse = Notification.Name("newDeepSeekResponse")
 }
+

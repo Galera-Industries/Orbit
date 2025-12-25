@@ -11,6 +11,11 @@ import AppKit
 final class WebContentExtractor {
     static let shared = WebContentExtractor()
     
+    private let deepSeekService = DeepSeekService.shared
+    private let telegramService = TelegramBotService.shared
+    private let vkService = VKService.shared
+    private let screenshotManager = ScreenshotManager.shared
+    
     private init() {}
     
     /// Извлекает содержимое <div role="main"> из открытой страницы Safari или Chrome
@@ -71,6 +76,58 @@ final class WebContentExtractor {
             if response == .alertFirstButtonReturn {
                 self.openAutomationSettings()
             }
+        }
+    }
+    
+    /// Показывает алерт о необходимости включить JavaScript в Safari
+    private func showSafariJavaScriptAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Требуется включить JavaScript в Safari"
+        alert.informativeText = """
+        Для работы функции необходимо включить опцию "Allow JavaScript from Apple Events" в настройках Safari.
+        
+        Инструкция:
+        
+        1. Откройте Safari
+        2. Перейдите в меню Safari → Настройки (Settings) → Дополнения (Advanced)
+        3. Внизу включите чекбокс "Показывать меню "Разработка" в строке меню"
+        4. Перейдите в меню Разработка (Develop) → Разрешить JavaScript из Apple Events
+        
+        Или через настройки:
+        Safari → Settings → Advanced → Show Develop menu
+        Develop → Allow JavaScript from Apple Events
+        
+        После включения попробуйте снова (⌘⌥M).
+        """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Открыть настройки Safari")
+        alert.addButton(withTitle: "ОК")
+        
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            // Пытаемся открыть настройки Safari через AppleScript
+            openSafariPreferences()
+        }
+    }
+    
+    /// Открывает настройки Safari
+    private func openSafariPreferences() {
+        let script = """
+        tell application "Safari"
+            activate
+            tell application "System Events"
+                tell process "Safari"
+                    click menu item "Settings…" of menu "Safari" of menu bar 1
+                end tell
+            end tell
+        end tell
+        """
+        let appleScript = NSAppleScript(source: script)
+        var error: NSDictionary?
+        _ = appleScript?.executeAndReturnError(&error)
+        if error != nil {
+            // Fallback: просто активируем Safari
+            NSWorkspace.shared.launchApplication("Safari")
         }
     }
     
@@ -328,7 +385,8 @@ final class WebContentExtractor {
     
     private func processExtractedContent(_ result: String?, isSafari: Bool) {
         guard let result = result, !result.isEmpty else {
-            print("⚠️ Не удалось извлечь содержимое страницы")
+            print("⚠️ Не удалось извлечь содержимое страницы, делаем скриншот...")
+            fallbackToScreenshot()
             return
         }
         
@@ -337,6 +395,17 @@ final class WebContentExtractor {
         // Проверяем на ошибки
         if result.hasPrefix("ERROR:") {
             print("❌ \(result)")
+            
+            // Проверяем, не связана ли ошибка с настройками Safari
+            if result.contains("Allow JavaScript from Apple Events") || result.contains("Developer section") {
+                DispatchQueue.main.async { [weak self] in
+                    self?.showSafariJavaScriptAlert()
+                }
+            } else {
+                // Если ошибка не связана с настройками Safari, делаем fallback на скриншот
+                print("⚠️ Не удалось извлечь текст, делаем скриншот...")
+                fallbackToScreenshot()
+            }
             return
         }
         
@@ -372,7 +441,9 @@ final class WebContentExtractor {
             cleanText = textToSave
         }
         
+        // Сохраняем в файл и отправляем в AI
         saveToFile(content: cleanText, url: pageURL, title: pageTitle)
+        sendToAI(content: cleanText)
     }
     
     private func extractTextFromHTML(_ html: String) -> String {
@@ -411,9 +482,274 @@ final class WebContentExtractor {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
+    // MARK: - Fallback to Screenshot
+    
+    /// Fallback: делаем скриншот выбранной области и отправляем в AI
+    private func fallbackToScreenshot() {
+        print("📸 Fallback: делаем скриншот выбранной области...")
+        screenshotManager.captureAndSend()
+    }
+    
+    // MARK: - AI Processing
+    
+    /// Отправляет извлеченный текст в AI сервисы
+    private func sendToAI(content: String) {
+        // Промпт из screenshot settings
+        let userPrompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
+        
+        // ШАГ 1: Отправляем в DeepSeek с промптом "извлеки отсюда условия заданий и варианты ответов"
+        let extractionPrompt = "извлеки отсюда условия заданий и варианты ответов \(content)"
+        
+        // Проверяем, есть ли ключ DeepSeek для извлечения
+        guard deepSeekService.hasDeepSeekKey else {
+            print("⚠️ Нет ключа DeepSeek для извлечения заданий")
+            // Если нет ключа DeepSeek, отправляем сразу в ChatGPT и DeepSeek с исходным текстом
+            sendToChatGPTAndDeepSeek(content: content, userPrompt: userPrompt)
+            return
+        }
+        
+        print("📤 ШАГ 1: Отправляю текст в DeepSeek (извлечение заданий)...")
+        deepSeekService.sendTextToDeepSeek(prompt: extractionPrompt) { [weak self] result in
+            guard let self = self else { return }
+            
+            switch result {
+            case .success(let extractedText):
+                print("✅ DeepSeek (извлечение) ответ получен: \(extractedText.prefix(100))...")
+                
+                // ШАГ 2 и 3: Используем извлечённый текст для отправки в ChatGPT и DeepSeek с пользовательским промптом
+                self.sendToChatGPTAndDeepSeek(content: extractedText, userPrompt: userPrompt)
+                
+            case .failure(let error):
+                print("❌ DeepSeek (извлечение) ошибка: \(error)")
+                // Если извлечение не удалось, отправляем исходный текст
+                print("⚠️ Использую исходный текст для отправки в ChatGPT и DeepSeek")
+                self.sendToChatGPTAndDeepSeek(content: content, userPrompt: userPrompt)
+            }
+        }
+    }
+    
+    /// Отправляет текст в ChatGPT и DeepSeek с пользовательским промптом
+    private func sendToChatGPTAndDeepSeek(content: String, userPrompt: String) {
+        // Промпт для Yandex и DeepSeek (используем пользовательский промпт из screenshot settings)
+        let finalPrompt = "\(userPrompt)\n\n\(content)"
+        
+        var chatgptResponse: String? = nil
+        var deepseekResponse: String? = nil
+        var chatgptError: Error? = nil
+        var deepseekError: Error? = nil
+        
+        let group = DispatchGroup()
+        
+        // ШАГ 2: Отправляем в Yandex (GPT-5.2-chat-latest) если есть токен (с пользовательским промптом)
+        if deepSeekService.hasYandexToken {
+            group.enter()
+            print("📤 ШАГ 2: Отправляю текст в Yandex (GPT-5.2-chat-latest) с пользовательским промптом...")
+            deepSeekService.sendTextToYandex(prompt: finalPrompt) { result in
+                switch result {
+                case .success(let response):
+                    chatgptResponse = response
+                    print("✅ ChatGPT ответ получен: \(response.prefix(100))...")
+                case .failure(let error):
+                    chatgptError = error
+                    print("❌ ChatGPT ошибка: \(error)")
+                }
+                group.leave()
+            }
+        }
+        
+        // ШАГ 3: Отправляем в DeepSeek (с промптом из screenshot settings) если есть ключ
+        if deepSeekService.hasDeepSeekKey {
+            group.enter()
+            print("📤 ШАГ 3: Отправляю текст в DeepSeek (с пользовательским промптом)...")
+            deepSeekService.sendTextToDeepSeek(prompt: finalPrompt) { result in
+                switch result {
+                case .success(let response):
+                    deepseekResponse = response
+                    print("✅ DeepSeek (пользовательский промпт) ответ получен: \(response.prefix(100))...")
+                case .failure(let error):
+                    deepseekError = error
+                    print("❌ DeepSeek (пользовательский промпт) ошибка: \(error)")
+                }
+                group.leave()
+            }
+        }
+        
+        // Ждем завершения всех запросов
+        group.notify(queue: .main) { [weak self] in
+            guard let self = self else { return }
+            
+            // Отправляем отдельные ответы в Telegram и VK
+            if let chatgpt = chatgptResponse {
+                let message = "🤖 ChatGPT\n\n\(chatgpt)"
+                self.sendToMessengers(message: message, serviceName: "ChatGPT")
+            }
+            
+            if let deepseek = deepseekResponse {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    let message = "🔵 DeepSeek\n\n\(deepseek)"
+                    self.sendToMessengers(message: message, serviceName: "DeepSeek")
+                }
+            }
+            
+            // Отправляем комбинированное сообщение в VK после небольшой задержки
+            if chatgptResponse != nil || deepseekResponse != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.sendCombinedMessageToVK(chatgpt: chatgptResponse, deepseek: deepseekResponse)
+                }
+            }
+            
+            // Отправляем ответы на бэкенд для Apple Watch
+            if chatgptResponse != nil || deepseekResponse != nil {
+                self.sendResponsesToBackend(chatgpt: chatgptResponse, deepseek: deepseekResponse)
+            }
+            
+            // Сохраняем ответы в UserDefaults для панели
+            if let chatgpt = chatgptResponse {
+                self.saveResponse(chatgpt, type: "chatgpt")
+            }
+            if let deepseek = deepseekResponse {
+                self.saveResponse(deepseek, type: "deepseek")
+            }
+        }
+    }
+    
+    /// Сохраняет ответ в UserDefaults
+    private func saveResponse(_ response: String, type: String = "deepseek") {
+        // Сохраняем в стандартный UserDefaults (так панель сможет их прочитать напрямую)
+        let defaults = UserDefaults.standard
+        let key = type == "chatgpt" ? "chatgptResponses" : "deepseekResponses"
+        var responses = defaults.stringArray(forKey: key) ?? []
+        responses.insert(response, at: 0) // Вставляем в начало (самый свежий ответ)
+        if responses.count > 50 { responses = Array(responses.prefix(50)) }
+        defaults.set(responses, forKey: key)
+        
+        // Также сохраняем в App Group для совместимости с Apple Watch (если есть)
+        if let groupDefaults = UserDefaults(suiteName: "group.com.orbit.app") {
+            groupDefaults.set(responses, forKey: key)
+        }
+        
+        print("✅ Ответ сохранен в UserDefaults: \(type), длина: \(response.count) символов")
+    }
+    
+    /// Отправляет сообщение в Telegram и VK (если настроены)
+    private func sendToMessengers(message: String, serviceName: String) {
+        // Отправляем в Telegram
+        print("📱 Отправляю ответ \(serviceName) в Telegram...")
+        telegramService.sendMessage(message) { result in
+            switch result {
+            case .success:
+                print("✅ \(serviceName) ответ отправлен в Telegram")
+            case .failure(let error):
+                print("❌ Ошибка отправки \(serviceName) в Telegram: \(error.localizedDescription)")
+            }
+        }
+        
+        // Отправляем в VK (отдельное сообщение)
+        print("📱 Отправляю ответ \(serviceName) в VK...")
+        vkService.sendMessage(message.replacingOccurrences(of: "*", with: "")) { result in
+            switch result {
+            case .success:
+                print("✅ \(serviceName) ответ отправлен в VK")
+            case .failure(let error):
+                print("❌ Ошибка отправки \(serviceName) в VK: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// Отправляет комбинированное сообщение с двумя столбцами в VK
+    private func sendCombinedMessageToVK(chatgpt: String?, deepseek: String?) {
+        // Формируем сообщение с двумя столбцами
+        var combinedMessage = ""
+        
+        if let chatgpt = chatgpt, let deepseek = deepseek {
+            // Оба ответа есть - формируем столбцы построчно
+            let chatgptLines = chatgpt.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            let deepseekLines = deepseek.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            
+            let maxLines = max(chatgptLines.count, deepseekLines.count)
+            var lines: [String] = []
+            
+            for i in 0..<maxLines {
+                let chatgptLine = i < chatgptLines.count ? chatgptLines[i] : ""
+                let deepseekLine = i < deepseekLines.count ? deepseekLines[i] : ""
+                
+                if !chatgptLine.isEmpty && !deepseekLine.isEmpty {
+                    lines.append("\(chatgptLine) | \(deepseekLine)")
+                } else if !chatgptLine.isEmpty {
+                    lines.append(chatgptLine)
+                } else if !deepseekLine.isEmpty {
+                    lines.append(deepseekLine)
+                }
+            }
+            
+            combinedMessage = lines.joined(separator: "\n")
+        } else if let chatgpt = chatgpt {
+            combinedMessage = chatgpt
+        } else if let deepseek = deepseek {
+            combinedMessage = deepseek
+        } else {
+            return // Нет данных для отправки
+        }
+        
+        print("📱 Отправляю комбинированное сообщение (столбцы) в VK...")
+        vkService.sendMessage(combinedMessage) { result in
+            switch result {
+            case .success:
+                print("✅ Комбинированное сообщение отправлено в VK")
+            case .failure(let error):
+                print("❌ Ошибка отправки комбинированного сообщения в VK: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// Отправляет ответы на бэкенд для Apple Watch
+    private func sendResponsesToBackend(chatgpt: String?, deepseek: String?) {
+        guard let url = URL(string: "http://158.160.149.37:8000/responses") else {
+            print("⚠️ Неверный URL бэкенда")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let channelNumber = UserDefaults.standard.string(forKey: "watchChannelNumber") ?? "1"
+        
+        let body: [String: Any?] = [
+            "chatgpt": chatgpt,
+            "deepseek": deepseek,
+            "channel": channelNumber
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    print("❌ Ошибка отправки ответов на бэкенд: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if (200...299).contains(httpResponse.statusCode) {
+                        print("✅ Ответы успешно отправлены на бэкенд")
+                    } else {
+                        print("⚠️ Бэкенд вернул статус: \(httpResponse.statusCode)")
+                    }
+                } else {
+                    // Connection refused или другая ошибка - это нормально, если бэкенд не запущен
+                    print("⚠️ Не удалось подключиться к бэкенду (возможно, он не запущен)")
+                }
+            }.resume()
+        } catch {
+            print("❌ Ошибка сериализации JSON: \(error)")
+        }
+    }
+    
     // MARK: - File Saving
     
     private func saveToFile(content: String, url: String?, title: String?) {
+        // Сохраняем только текст, без метаданных
         guard let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else {
             print("⚠️ Не удалось найти папку Desktop")
             return
@@ -446,24 +782,17 @@ final class WebContentExtractor {
         
         let fileURL = screenshotsFolder.appendingPathComponent(filename)
         
-        // Формируем содержимое файла с метаданными
-        var fileContent = ""
-        if let url = url {
-            fileContent += "URL: \(url)\n"
-        }
-        if let title = title {
-            fileContent += "Title: \(title)\n"
-        }
-        fileContent += "Extracted: \(formatter.string(from: Date()))\n"
-        fileContent += "\n" + String(repeating: "=", count: 80) + "\n\n"
-        fileContent += content
-        
+        // Сохраняем только текст без метаданных
         do {
-            try fileContent.write(to: fileURL, atomically: true, encoding: .utf8)
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
             print("✅ Содержимое сохранено: \(fileURL.path)")
             
-            // Показываем уведомление или открываем файл
-            NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+            // Возвращаем фокус в Safari, чтобы пользователь остался там
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if let safari = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.Safari" }) {
+                    safari.activate(options: [])
+                }
+            }
         } catch {
             print("❌ Ошибка сохранения файла: \(error)")
         }

@@ -32,21 +32,15 @@ final class DeepSeekService {
         deepSeekApiKey != nil
     }
     
-    //    private let backendURL = "http://158.160.149.37:8000"
-    private let backendURL = "http://localhost:8000"
+    private let backendURL = "http://158.160.149.37:8000"
+//    private let backendURL = "http://localhost:8000"
     private init() {}
     
-    /// Отправляет скриншот в API с промптом (пробует Yandex -> DeepSeek через бэкенд OCR)
+    /// Отправляет скриншот в API с промптом (пробует Yandex)
     func sendScreenshot(_ imageBase64: String, prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
-        // Сначала пробуем Yandex API (если есть токен)
+        // Пробуем Yandex API (если есть токен)
         if let yandexToken = yandexToken {
             sendToYandex(imageBase64: imageBase64, prompt: prompt, token: yandexToken, completion: completion)
-            return
-        }
-        
-        // Если есть DeepSeek ключ, отправляем изображение на бэкенд для OCR, затем в DeepSeek
-        if let deepSeekKey = deepSeekApiKey {
-            sendImageToBackendForOCR(imageBase64: imageBase64, prompt: prompt, completion: completion)
             return
         }
         
@@ -61,101 +55,6 @@ final class DeepSeekService {
             return
         }
         sendToYandex(imageBase64: imageBase64, prompt: prompt, token: token, completion: completion)
-    }
-    
-    /// Отправляет скриншот в DeepSeek через бэкенд OCR (публичный метод)
-    func sendToDeepSeekViaBackend(imageBase64: String, prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
-        guard deepSeekApiKey != nil else {
-            completion(.failure(DeepSeekError.apiKeyNotSet))
-            return
-        }
-        sendImageToBackendForOCR(imageBase64: imageBase64, prompt: prompt, completion: completion)
-    }
-    
-    /// Отправляет изображение на бэкенд для OCR, затем текст в DeepSeek
-    private func sendImageToBackendForOCR(imageBase64: String, prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
-        guard let url = URL(string: "\(backendURL)/ocr") else {
-            completion(.failure(DeepSeekError.invalidURL))
-            return
-        }
-        
-        // Извлекаем base64 часть из строки (убираем префикс data:image/...;base64,)
-        let base64String: String
-        if imageBase64.contains(",") {
-            base64String = String(imageBase64.split(separator: ",").last ?? "")
-        } else {
-            base64String = imageBase64
-        }
-        
-        // Конвертируем base64 в Data
-        guard let imageData = Data(base64Encoded: base64String) else {
-            print("⚠️ Не удалось декодировать base64 изображение")
-            completion(.failure(DeepSeekError.invalidResponse))
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let boundary = UUID().uuidString
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
-        var body = Data()
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"image.png\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
-        body.append(imageData)
-        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
-        
-        request.httpBody = body
-        
-        print("📤 Отправляю изображение на бэкенд для OCR (размер: \(imageData.count) bytes)")
-        
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            if let error = error {
-                print("❌ Ошибка при отправке на бэкенд: \(error.localizedDescription)")
-                completion(.failure(error))
-                return
-            }
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                completion(.failure(DeepSeekError.invalidResponse))
-                return
-            }
-            
-            guard (200...299).contains(httpResponse.statusCode) else {
-                print("❌ Бэкенд вернул ошибку: статус \(httpResponse.statusCode)")
-                if let data = data, let errorString = String(data: data, encoding: .utf8) {
-                    print("Ошибка: \(errorString)")
-                }
-                completion(.failure(DeepSeekError.httpError(httpResponse.statusCode)))
-                return
-            }
-            
-            guard let data = data else {
-                completion(.failure(DeepSeekError.noData))
-                return
-            }
-            
-            do {
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let recognizedText = json["text"] as? String {
-                    print("✅ OCR распознал текст: \(recognizedText.prefix(100))...")
-                    // Теперь отправляем распознанный текст в DeepSeek вместе с промптом
-                    let fullPrompt = "\(prompt)\n\nРаспознанный текст с изображения:\n\(recognizedText)"
-                    self?.sendToDeepSeekWithoutImage(prompt: fullPrompt, completion: completion)
-                } else {
-                    print("⚠️ Неверный формат ответа от бэкенда")
-                    if let responseString = String(data: data, encoding: .utf8) {
-                        print("Ответ: \(responseString)")
-                    }
-                    completion(.failure(DeepSeekError.invalidResponse))
-                }
-            } catch {
-                print("❌ Ошибка парсинга ответа: \(error)")
-                completion(.failure(error))
-            }
-        }.resume()
     }
     
     /// Отправляет в Yandex API (GPT-5.2)
@@ -195,6 +94,7 @@ final class DeepSeekService {
         request.httpMethod = "POST"
         request.setValue("OAuth \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120.0 // 2 минуты для больших запросов
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody, options: [])
@@ -399,6 +299,110 @@ final class DeepSeekService {
         }.resume()
     }
     
+    /// Отправляет текстовый запрос в DeepSeek (публичный метод)
+    func sendTextToDeepSeek(prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
+        sendToDeepSeekWithoutImage(prompt: prompt, completion: completion)
+    }
+    
+    /// Отправляет текстовый запрос в Yandex GPT-5.2-chat-latest (публичный метод)
+    func sendTextToYandex(prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
+        guard let token = yandexToken else {
+            completion(.failure(DeepSeekError.apiKeyNotSet))
+            return
+        }
+        sendTextToYandex(prompt: prompt, token: token, completion: completion)
+    }
+    
+    /// Отправляет текстовый запрос в Yandex GPT-5.2-chat-latest (приватный метод)
+    private func sendTextToYandex(prompt: String, token: String, completion: @escaping (Result<String, Error>) -> Void) {
+        let messages: [[String: Any]] = [
+            [
+                "role": "user",
+                "content": [
+                    [
+                        "type": "text",
+                        "text": prompt
+                    ]
+                ]
+            ]
+        ]
+        
+        let requestBody: [String: Any] = [
+            "model": "gpt-5.2-chat-latest",
+            "messages": messages,
+            "max_completion_tokens": 20000
+        ]
+        
+        guard let url = URL(string: yandexBaseURL) else {
+            completion(.failure(DeepSeekError.invalidURL))
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("OAuth \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120.0 // 2 минуты для больших запросов
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody, options: [])
+        } catch {
+            completion(.failure(error))
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                completion(.failure(DeepSeekError.invalidResponse))
+                return
+            }
+            
+            guard let data = data else {
+                completion(.failure(DeepSeekError.noData))
+                return
+            }
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                do {
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let error = json["error"] as? [String: Any],
+                       let message = error["message"] as? String {
+                        completion(.failure(DeepSeekError.apiError(message, httpResponse.statusCode)))
+                    } else {
+                        completion(.failure(DeepSeekError.httpError(httpResponse.statusCode)))
+                    }
+                } catch {
+                    completion(.failure(DeepSeekError.httpError(httpResponse.statusCode)))
+                }
+                return
+            }
+            
+            do {
+                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    completion(.failure(DeepSeekError.invalidResponse))
+                    return
+                }
+                
+                if let response = json["response"] as? [String: Any],
+                   let choices = response["choices"] as? [[String: Any]],
+                   let firstChoice = choices.first,
+                   let message = firstChoice["message"] as? [String: Any],
+                   let content = message["content"] as? String {
+                    completion(.success(content))
+                } else {
+                    completion(.failure(DeepSeekError.invalidResponse))
+                }
+            } catch {
+                completion(.failure(error))
+            }
+        }.resume()
+    }
+    
     /// Отправляет в DeepSeek без изображения (так как не поддерживается)
     private func sendToDeepSeekWithoutImage(prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
         guard let apiKey = deepSeekApiKey, !apiKey.isEmpty else {
@@ -417,7 +421,7 @@ final class DeepSeekService {
         let requestBody: [String: Any] = [
             "model": "deepseek-chat",
             "messages": messages,
-            "max_tokens": 2000
+            "max_tokens": 8192
         ]
         
         sendRequest(to: deepSeekBaseURL, apiKey: apiKey, requestBody: requestBody, completion: completion)
@@ -434,6 +438,8 @@ final class DeepSeekService {
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Увеличиваем таймаут для больших запросов (DeepSeek может долго обрабатывать большие тексты)
+        request.timeoutInterval = 180.0 // 3 минуты вместо стандартных 60 секунд
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)

@@ -52,6 +52,9 @@ struct OrbitApp: App {
                     if Self.statusBarController == nil {
                         Self.statusBarController = StatusBarController(windowManager: windowManager)
                     }
+                    
+                    // Инициализируем панель ответов (регистрация горячих клавиш происходит внутри)
+                    _ = ResponsePanelManager.shared
                 }
         }
         .windowStyle(.hiddenTitleBar)
