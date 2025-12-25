@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import AppKit // Не забудьте импортировать AppKit для работы с NSWindow
 
 struct ResponsePanelView: View {
     @State private var chatgptResponse: String? = nil
@@ -15,18 +16,16 @@ struct ResponsePanelView: View {
     
     // Настройки из UserDefaults
     @State private var layoutMode: String = UserDefaults.standard.string(forKey: "responsePanelLayoutMode") ?? "horizontal"
-    @AppStorage("responsePanelBackgroundType") private var backgroundType: String = "colored" // "colored" or "blurred" - второй режим
-    @AppStorage("responsePanelTransparentMode") private var transparentMode: Bool = false // true = прозрачный, false = второй режим
+    @AppStorage("responsePanelBackgroundType") private var backgroundType: String = "colored"
+    @AppStorage("responsePanelTransparentMode") private var transparentMode: Bool = false
     
     var body: some View {
         Group {
             if layoutMode == "horizontal" {
-                // Горизонтальное разделение (вертикальная компоновка: ChatGPT сверху, DeepSeek снизу)
                 VStack(spacing: 0) {
                     responseContent
                 }
             } else {
-                // Вертикальное разделение (горизонтальная компоновка: ChatGPT слева, DeepSeek справа)
                 HStack(spacing: 0) {
                     responseContent
                 }
@@ -40,9 +39,11 @@ struct ResponsePanelView: View {
                 VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, state: .active)
             }
         }
+        // 👇 ДОБАВЛЯЕМ ЭТУ СТРОКУ, ЧТОБЫ СКРЫТЬ ОТ OBS 👇
+        .background(OBSHiddenAccessor()) 
+        // 👆 КОНЕЦ ИЗМЕНЕНИЙ 👆
         .onAppear {
             loadResponses()
-            // Периодически проверяем обновления
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 loadResponses()
             }
@@ -60,14 +61,11 @@ struct ResponsePanelView: View {
         .gesture(
             DragGesture(minimumDistance: 30)
                 .onEnded { value in
-                    // Свайп влево/вправо переключает режим отображения
                     if abs(value.translation.width) > abs(value.translation.height) {
                         if value.translation.width > 30 {
-                            // Свайп вправо - горизонтальный режим (вертикальная компоновка)
                             layoutMode = "horizontal"
                             UserDefaults.standard.set("horizontal", forKey: "responsePanelLayoutMode")
                         } else if value.translation.width < -30 {
-                            // Свайп влево - вертикальный режим (горизонтальная компоновка)
                             layoutMode = "vertical"
                             UserDefaults.standard.set("vertical", forKey: "responsePanelLayoutMode")
                         }
@@ -78,7 +76,6 @@ struct ResponsePanelView: View {
     
     @ViewBuilder
     private var responseContent: some View {
-        // ChatGPT ответ (зеленый фон)
         if let chatgpt = chatgptResponse, !chatgpt.isEmpty {
             responseCard(
                 title: "ChatGPT",
@@ -88,7 +85,6 @@ struct ResponsePanelView: View {
             )
         }
         
-        // DeepSeek ответ (синий фон)
         if let deepseek = deepseekResponse, !deepseek.isEmpty {
             responseCard(
                 title: "DeepSeek",
@@ -98,7 +94,6 @@ struct ResponsePanelView: View {
             )
         }
         
-        // Если нет данных
         if chatgptResponse == nil && deepseekResponse == nil {
             Text("Ожидание ответов...")
                 .font(.system(size: 9))
@@ -131,13 +126,10 @@ struct ResponsePanelView: View {
         .background(
             Group {
                 if transparentMode {
-                    // Прозрачный режим - полностью прозрачный фон
                     Color.clear
                 } else if backgroundType == "colored" {
-                    // Второй режим - цветной фон
                     backgroundColor
                 } else {
-                    // Второй режим - размытый фон
                     VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, state: .active)
                 }
             }
@@ -145,18 +137,13 @@ struct ResponsePanelView: View {
     }
     
     private func loadResponses() {
-        // Используем стандартный UserDefaults напрямую (как и ScreenshotManager)
         let defaults = UserDefaults.standard
-        
-        // Получаем последние ответы (первый элемент массива - самый свежий, так как используется insert at: 0)
         let chatgptResponses = defaults.stringArray(forKey: "chatgptResponses") ?? []
         let deepseekResponses = defaults.stringArray(forKey: "deepseekResponses") ?? []
         
-        // Всегда обновляем (чтобы отразить изменения)
         chatgptResponse = chatgptResponses.isEmpty ? nil : chatgptResponses.first
         deepseekResponse = deepseekResponses.isEmpty ? nil : deepseekResponses.first
         
-        // Также обновляем layoutMode из UserDefaults (на случай изменения в настройках или горячих клавиш)
         let savedLayoutMode = defaults.string(forKey: "responsePanelLayoutMode") ?? "horizontal"
         if savedLayoutMode != layoutMode {
             layoutMode = savedLayoutMode
@@ -169,9 +156,28 @@ struct ResponsePanelView: View {
     }
     
     private func toggleBackground() {
-        // Переключаем между прозрачным и вторым режимом
         transparentMode.toggle()
         UserDefaults.standard.set(transparentMode, forKey: "responsePanelTransparentMode")
     }
 }
 
+// MARK: - Вспомогательная структура для скрытия от OBS
+
+/// Этот компонент находит родительское окно NSWindow и отключает его шаринг (запись экрана)
+struct OBSHiddenAccessor: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            // .none означает, что окно не будет отдаваться системе записи экрана
+            view.window?.sharingType = .none
+        }
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {
+        // На случай, если окно пересоздалось, пробуем установить флаг снова
+        DispatchQueue.main.async {
+             nsView.window?.sharingType = .none
+        }
+    }
+}

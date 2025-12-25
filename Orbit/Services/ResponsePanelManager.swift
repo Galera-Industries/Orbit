@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import ObjectiveC
 
 extension Notification.Name {
     static let responsePanelToggleLayout = Notification.Name("responsePanelToggleLayout")
@@ -92,6 +93,9 @@ final class ResponsePanelManager {
         window.hidesOnDeactivate = false
         window.hasShadow = true
         
+        // Скрываем окно от записи экрана и демонстрации
+        hideWindowFromScreenCapture(window)
+        
         panelWindow = window
     }
     
@@ -153,8 +157,9 @@ final class ResponsePanelManager {
         
         window.setContentSize(panelSize)
         window.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: panelSize), display: true)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        // Используем orderFront вместо makeKeyAndOrderFront, чтобы не активировать приложение
+        // и сохранить фокус на предыдущем приложении (например, Safari)
+        window.orderFront(nil)
     }
     
     func hide() {
@@ -304,6 +309,30 @@ final class ResponsePanelManager {
             }
         }
         return mods
+    }
+    
+    /// Скрывает окно от записи экрана и демонстрации
+    private func hideWindowFromScreenCapture(_ window: NSWindow) {
+        guard let contentView = window.contentView else { return }
+        
+        // В macOS 11.0+ используем sharingType через Objective-C runtime
+        // Это предотвращает захват окна в записи экрана и демонстрации
+        if #available(macOS 11.0, *) {
+            // Используем Objective-C runtime для установки свойства sharingType
+            let selector = NSSelectorFromString("setSharingType:")
+            if contentView.responds(to: selector) {
+                // Получаем метод из класса
+                let viewClass: AnyClass = type(of: contentView)
+                if let method = class_getInstanceMethod(viewClass, selector) {
+                    let implementation = method_getImplementation(method)
+                    // Тип метода: void setSharingType:(NSInteger)type
+                    typealias SetSharingType = @convention(c) (NSView, Selector, Int) -> Void
+                    let setSharingType = unsafeBitCast(implementation, to: SetSharingType.self)
+                    // 0 = NSWindowSharingTypeNone - скрывает от записи экрана
+                    setSharingType(contentView, selector, 0)
+                }
+            }
+        }
     }
 }
 

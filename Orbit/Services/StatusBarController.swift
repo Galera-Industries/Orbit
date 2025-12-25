@@ -9,9 +9,10 @@ import AppKit
 internal import os
 
 final class StatusBarController: NSObject, NSMenuDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+//    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let windowManager: WindowManager
     private let menu = NSMenu()
+    
     
     init(windowManager: WindowManager) {
         self.windowManager = windowManager
@@ -20,16 +21,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
     
     private func setup() {
-        if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "sparkles",
-                accessibilityDescription: "Launcher"
-            )
-            button.imagePosition = .imageOnly
-            button.target = self
-            button.action = #selector(handleClick(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        }
+//        if let button = statusItem.button {
+//            button.image = NSImage(
+//                systemSymbolName: "sparkles",
+//                accessibilityDescription: "Launcher"
+//            )
+//            button.imagePosition = .imageOnly
+//            button.target = self
+//            button.action = #selector(handleClick(_:))
+//            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+//        }
         
         let toggle = NSMenuItem(
             title: "Toggle Launcher",
@@ -70,9 +71,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         
         if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             L.window.info("StatusItem right click -> show menu")
-            statusItem.menu = menu
-            statusItem.button?.performClick(nil)
-            statusItem.menu = nil
+//            statusItem.menu = menu
+//            statusItem.button?.performClick(nil)
+//            statusItem.menu = nil
         } else {
             L.window.info("StatusItem left click -> toggle")
             windowManager.toggleAndFocus()
