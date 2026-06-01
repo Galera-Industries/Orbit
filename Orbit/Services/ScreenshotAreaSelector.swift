@@ -77,6 +77,7 @@ final class ScreenshotAreaSelector {
             window.isReleasedWhenClosed = false
             window.hidesOnDeactivate = false
             window.acceptsMouseMovedEvents = true
+            ScreenCaptureShield.apply(to: window)
             
             // Создаем кастомный view
             let selectionView = SelectionView(frame: NSRect(origin: .zero, size: screenFrame.size), screen: screen)

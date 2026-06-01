@@ -139,9 +139,13 @@ enum KeyCode {
     static let s: UInt32 = UInt32(kVK_ANSI_S)
     static let c: UInt32 = UInt32(kVK_ANSI_C)
     static let m: UInt32 = UInt32(kVK_ANSI_M)
+    static let n: UInt32 = UInt32(kVK_ANSI_N)
     static let r: UInt32 = UInt32(kVK_ANSI_R)
     static let l: UInt32 = UInt32(kVK_ANSI_L)
     static let b: UInt32 = UInt32(kVK_ANSI_B)
+    static let z: UInt32 = UInt32(kVK_ANSI_Z)
+    static let minus: UInt32 = UInt32(kVK_ANSI_Minus)
+    static let equal: UInt32 = UInt32(kVK_ANSI_Equal)
 }
 enum CarbonMods {
     static let cmd: UInt32 = UInt32(cmdKey)
@@ -150,6 +154,7 @@ enum CarbonMods {
     static let control: UInt32 = UInt32(controlKey)
     /// типа cmd и opt нажаты одновременно
     static let cmdOpt: UInt32 = UInt32(cmdKey | optionKey)
+    static let cmdOptShift: UInt32 = UInt32(cmdKey | optionKey | shiftKey)
     static let cmdShift: UInt32 = UInt32(cmdKey | shiftKey)
     static let controlShift: UInt32 = UInt32(controlKey | shiftKey)
     static let optionControlShift: UInt32 = UInt32(optionKey | controlKey | shiftKey)

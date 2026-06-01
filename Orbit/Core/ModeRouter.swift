@@ -32,6 +32,10 @@ final class ModeRouter {
             mode = .settings
             let cut = trimmed.lowercased().hasPrefix("settings") ? "settings".count : (trimmed.lowercased().hasPrefix("prefs") ? "prefs".count : "config".count)
             body = String(trimmed.dropFirst(cut)).trimmingCharacters(in: .whitespaces)
+        } else if trimmed.lowercased().hasPrefix("zoom") || trimmed.lowercased().hasPrefix("files") || trimmed.lowercased().hasPrefix("research") || trimmed.lowercased().hasPrefix("file") {
+            mode = .zoom
+            let cut = trimmed.lowercased().hasPrefix("research") ? "research".count : (trimmed.lowercased().hasPrefix("files") ? "files".count : (trimmed.lowercased().hasPrefix("file") ? "file".count : "zoom".count))
+            body = String(trimmed.dropFirst(cut)).trimmingCharacters(in: .whitespaces)
         } else if trimmed.isEmpty {
             mode = lastMode == .tasks ? .launcher : lastMode
             body = ""

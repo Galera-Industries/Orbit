@@ -79,7 +79,7 @@ struct RootView: View {
                         QuickLauncherScroll()
                     } else if shell.currentMode == .clipboard || shell.currentMode == .pomodoro {
                         ClipboardPreviewHStack()
-                    } else if shell.currentMode == .settings {
+                    } else if shell.currentMode == .settings || shell.currentMode == .zoom {
                         QuickLauncherScroll()
                     } else {
                         TasksListView(context: shell.context)
@@ -103,7 +103,10 @@ struct RootView: View {
                 case 36, 76:
                     let alt = event.modifierFlags.contains(.shift)
                     shell.executeSelected(alternative: alt); return nil
-                case 53: shell.handleEscape(); return nil
+                case 53:
+                    // Let sheets handle Escape themselves
+                    if NSApp.keyWindow?.isSheet == true { return event }
+                    shell.handleEscape(); return nil
                 default: return event
                 }
             }
@@ -579,6 +582,8 @@ struct BottomPanel: View {
         case .pomodoro:
             return []
         case .settings:
+            return []
+        case .zoom:
             return []
         }
     }

@@ -30,8 +30,8 @@ final class SettingsModule: ModulePlugin {
     func search(intent: Any, cancellation: @escaping () -> Bool, emit: @escaping ([ResultItem]) -> Void) {
         let items: [ResultItem] = [
             ResultItem(
-                title: "Screenshot Settings",
-                subtitle: "Configure screenshot area, DeepSeek API, and Telegram",
+                title: "Settings",
+                subtitle: "Configure AI services, hotkeys, file research, and more",
                 accessory: "↩︎",
                 primaryAction: {
                     NotificationCenter.default.post(name: .showScreenshotSettings, object: nil)

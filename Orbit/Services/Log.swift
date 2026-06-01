@@ -15,4 +15,5 @@ enum L {
     static let router = Logger(subsystem: "ru.sundayti.orbit", category: "router")
     static let ax = Logger(subsystem: "ru.sundayti.orbit", category: "accessibility")
     static let filter = Logger(subsystem: "ru.sundayti.orbit", category: "clipboard_filter")
+    static let zoom = Logger(subsystem: "ru.sundayti.orbit", category: "zoom")
 }

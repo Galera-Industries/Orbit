@@ -7,11 +7,12 @@
 
 import SwiftUI
 import AppKit
-import ObjectiveC
+internal import os
 
 extension Notification.Name {
     static let responsePanelToggleLayout = Notification.Name("responsePanelToggleLayout")
     static let responsePanelToggleBackground = Notification.Name("responsePanelToggleBackground")
+    static let responsePanelTextSizeDidChange = Notification.Name("responsePanelTextSizeDidChange")
 }
 
 final class ResponsePanelManager {
@@ -21,7 +22,20 @@ final class ResponsePanelManager {
     private var hotkeyID: UInt32?
     private var toggleLayoutHotkeyID: UInt32?
     private var toggleBackgroundHotkeyID: UInt32?
+    private var increaseTextSizeHotkeyID: UInt32?
+    private var increaseTextSizeWithShiftHotkeyID: UInt32?
+    private var decreaseTextSizeHotkeyID: UInt32?
     private var hostingView: NSHostingView<ResponsePanelView>?
+
+    private enum Defaults {
+        static let width: CGFloat = 560
+        static let height: CGFloat = 380
+        static let horizontalInset: CGFloat = 20
+        static let verticalInset: CGFloat = 20
+        static let textSize: CGFloat = 12
+        static let minTextSize: CGFloat = 9
+        static let maxTextSize: CGFloat = 24
+    }
     
     private init() {
         setupPanel()
@@ -43,41 +57,25 @@ final class ResponsePanelManager {
             panelWindow = nil
         }
         
-        let panelSize = getPanelSize()
-        let panelPosition = getPanelPosition()
         guard let screenFrame = NSScreen.main?.visibleFrame else {
-            print("⚠️ Не удалось получить размер экрана")
+            L.window.error("Failed to get visible screen frame for response panel")
             return
         }
-        
-        // Вычисляем позицию окна в зависимости от настроек
-        let x: CGFloat
-        let y: CGFloat
-        
-        switch panelPosition {
-        case "left-top":
-            x = screenFrame.minX + 20
-            y = screenFrame.maxY - panelSize.height - 20
-        case "left-bottom":
-            x = screenFrame.minX + 20
-            y = screenFrame.minY + 20
-        case "right-bottom":
-            x = screenFrame.maxX - panelSize.width - 20
-            y = screenFrame.minY + 20
-        case "right", "right-top":
-            x = screenFrame.maxX - panelSize.width - 20
-            y = screenFrame.maxY - panelSize.height - 20
-        default:
-            x = screenFrame.maxX - panelSize.width - 20
-            y = screenFrame.maxY - panelSize.height - 20
-        }
+        let panelSize = getPanelSize(screenFrame: screenFrame)
+        let panelPosition = getPanelPosition()
+
+        let frame = frameForPanel(
+            size: panelSize,
+            position: panelPosition,
+            screenFrame: screenFrame
+        )
         
         let hostingView = NSHostingView(rootView: ResponsePanelView())
         hostingView.autoresizingMask = [.width, .height]
         self.hostingView = hostingView
         
         let window = NSWindow(
-            contentRect: NSRect(origin: NSPoint(x: x, y: y), size: panelSize),
+            contentRect: frame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -94,7 +92,7 @@ final class ResponsePanelManager {
         window.hasShadow = true
         
         // Скрываем окно от записи экрана и демонстрации
-        hideWindowFromScreenCapture(window)
+        ScreenCaptureShield.apply(to: window)
         
         panelWindow = window
     }
@@ -130,33 +128,18 @@ final class ResponsePanelManager {
         }
         
         // Обновляем позицию на случай изменения настроек
-        let panelSize = getPanelSize()
-        let panelPosition = getPanelPosition()
         guard let screenFrame = NSScreen.main?.visibleFrame else { return }
-        
-        let x: CGFloat
-        let y: CGFloat
-        
-        switch panelPosition {
-        case "left-top":
-            x = screenFrame.minX + 20
-            y = screenFrame.maxY - panelSize.height - 20
-        case "left-bottom":
-            x = screenFrame.minX + 20
-            y = screenFrame.minY + 20
-        case "right-bottom":
-            x = screenFrame.maxX - panelSize.width - 20
-            y = screenFrame.minY + 20
-        case "right", "right-top":
-            x = screenFrame.maxX - panelSize.width - 20
-            y = screenFrame.maxY - panelSize.height - 20
-        default:
-            x = screenFrame.maxX - panelSize.width - 20
-            y = screenFrame.maxY - panelSize.height - 20
-        }
-        
+        let panelSize = getPanelSize(screenFrame: screenFrame)
+        let panelPosition = getPanelPosition()
+
+        let frame = frameForPanel(
+            size: panelSize,
+            position: panelPosition,
+            screenFrame: screenFrame
+        )
+
         window.setContentSize(panelSize)
-        window.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: panelSize), display: true)
+        window.setFrame(frame, display: true)
         // Используем orderFront вместо makeKeyAndOrderFront, чтобы не активировать приложение
         // и сохранить фокус на предыдущем приложении (например, Safari)
         window.orderFront(nil)
@@ -193,14 +176,15 @@ final class ResponsePanelManager {
         }
     }
     
-    private func getPanelSize() -> NSSize {
-        let width = UserDefaults.standard.double(forKey: "responsePanelWidth")
-        let height = UserDefaults.standard.double(forKey: "responsePanelHeight")
-        
-        let defaultSize: CGFloat = 50
+    private func getPanelSize(screenFrame: NSRect) -> NSSize {
+        let storedWidth = CGFloat(UserDefaults.standard.double(forKey: "responsePanelWidth"))
+        let storedHeight = CGFloat(UserDefaults.standard.double(forKey: "responsePanelHeight"))
+        let width = storedWidth > 0 ? storedWidth : Defaults.width
+        let height = storedHeight > 0 ? storedHeight : Defaults.height
+
         return NSSize(
-            width: width > 0 ? width : defaultSize,
-            height: height > 0 ? height : defaultSize
+            width: min(width, screenFrame.width),
+            height: min(height, screenFrame.height)
         )
     }
     
@@ -216,6 +200,46 @@ final class ResponsePanelManager {
             return "right-top"
         }
         return position
+    }
+
+    private func getPanelInsets() -> (horizontal: CGFloat, vertical: CGFloat) {
+        let defaults = UserDefaults.standard
+        let hasHorizontal = defaults.object(forKey: "responsePanelHorizontalInset") != nil
+        let hasVertical = defaults.object(forKey: "responsePanelVerticalInset") != nil
+        let storedHorizontal = CGFloat(defaults.double(forKey: "responsePanelHorizontalInset"))
+        let storedVertical = CGFloat(defaults.double(forKey: "responsePanelVerticalInset"))
+        let horizontal = hasHorizontal ? storedHorizontal : Defaults.horizontalInset
+        let vertical = hasVertical ? storedVertical : Defaults.verticalInset
+        return (horizontal, vertical)
+    }
+
+    private func frameForPanel(size: NSSize, position: String, screenFrame: NSRect) -> NSRect {
+        let insets = getPanelInsets()
+        let horizontalInset = min(insets.horizontal, max(0, screenFrame.width - size.width))
+        let verticalInset = min(insets.vertical, max(0, screenFrame.height - size.height))
+
+        let x: CGFloat
+        let y: CGFloat
+
+        switch position {
+        case "left-top":
+            x = screenFrame.minX + horizontalInset
+            y = screenFrame.maxY - size.height - verticalInset
+        case "left-bottom":
+            x = screenFrame.minX + horizontalInset
+            y = screenFrame.minY + verticalInset
+        case "right-bottom":
+            x = screenFrame.maxX - size.width - horizontalInset
+            y = screenFrame.minY + verticalInset
+        case "right", "right-top":
+            x = screenFrame.maxX - size.width - horizontalInset
+            y = screenFrame.maxY - size.height - verticalInset
+        default:
+            x = screenFrame.maxX - size.width - horizontalInset
+            y = screenFrame.maxY - size.height - verticalInset
+        }
+
+        return NSRect(origin: NSPoint(x: x, y: y), size: size)
     }
     
     private func registerHotkeys() {
@@ -239,6 +263,27 @@ final class ResponsePanelManager {
         toggleBackgroundHotkeyID = HotkeyService.shared.register(keyCode: KeyCode.b, carbonModifiers: CarbonMods.cmdOpt) {
             ResponsePanelManager.shared.toggleBackground()
         }
+
+        // Горячие клавиши размера текста: ⌘⌥- / ⌘⌥+
+        decreaseTextSizeHotkeyID = HotkeyService.shared.register(
+            keyCode: KeyCode.minus,
+            carbonModifiers: CarbonMods.cmdOpt
+        ) {
+            ResponsePanelManager.shared.adjustTextSize(delta: -1)
+        }
+        increaseTextSizeHotkeyID = HotkeyService.shared.register(
+            keyCode: KeyCode.equal,
+            carbonModifiers: CarbonMods.cmdOpt
+        ) {
+            ResponsePanelManager.shared.adjustTextSize(delta: 1)
+        }
+        // На ANSI-клавиатуре "+" набирается как Shift + "=".
+        increaseTextSizeWithShiftHotkeyID = HotkeyService.shared.register(
+            keyCode: KeyCode.equal,
+            carbonModifiers: CarbonMods.cmdOptShift
+        ) {
+            ResponsePanelManager.shared.adjustTextSize(delta: 1)
+        }
     }
     
     func updateHotkey() {
@@ -249,6 +294,15 @@ final class ResponsePanelManager {
             HotkeyService.shared.unregister(id: id)
         }
         if let id = toggleBackgroundHotkeyID {
+            HotkeyService.shared.unregister(id: id)
+        }
+        if let id = increaseTextSizeHotkeyID {
+            HotkeyService.shared.unregister(id: id)
+        }
+        if let id = increaseTextSizeWithShiftHotkeyID {
+            HotkeyService.shared.unregister(id: id)
+        }
+        if let id = decreaseTextSizeHotkeyID {
             HotkeyService.shared.unregister(id: id)
         }
         registerHotkeys()
@@ -270,6 +324,15 @@ final class ResponsePanelManager {
         
         // Обновляем view через NotificationCenter
         NotificationCenter.default.post(name: .responsePanelToggleBackground, object: nil)
+    }
+
+    func adjustTextSize(delta: CGFloat) {
+        let currentSize = CGFloat(UserDefaults.standard.double(forKey: "responsePanelTextSize"))
+        let normalizedCurrent = currentSize > 0 ? currentSize : Defaults.textSize
+        let newSize = min(Defaults.maxTextSize, max(Defaults.minTextSize, normalizedCurrent + delta))
+        guard abs(newSize - normalizedCurrent) > 0.001 else { return }
+        UserDefaults.standard.set(Double(newSize), forKey: "responsePanelTextSize")
+        NotificationCenter.default.post(name: .responsePanelTextSizeDidChange, object: nil)
     }
     
     private func keyCodeFromString(_ string: String) -> UInt32 {
@@ -311,29 +374,6 @@ final class ResponsePanelManager {
         return mods
     }
     
-    /// Скрывает окно от записи экрана и демонстрации
-    private func hideWindowFromScreenCapture(_ window: NSWindow) {
-        guard let contentView = window.contentView else { return }
-        
-        // В macOS 11.0+ используем sharingType через Objective-C runtime
-        // Это предотвращает захват окна в записи экрана и демонстрации
-        if #available(macOS 11.0, *) {
-            // Используем Objective-C runtime для установки свойства sharingType
-            let selector = NSSelectorFromString("setSharingType:")
-            if contentView.responds(to: selector) {
-                // Получаем метод из класса
-                let viewClass: AnyClass = type(of: contentView)
-                if let method = class_getInstanceMethod(viewClass, selector) {
-                    let implementation = method_getImplementation(method)
-                    // Тип метода: void setSharingType:(NSInteger)type
-                    typealias SetSharingType = @convention(c) (NSView, Selector, Int) -> Void
-                    let setSharingType = unsafeBitCast(implementation, to: SetSharingType.self)
-                    // 0 = NSWindowSharingTypeNone - скрывает от записи экрана
-                    setSharingType(contentView, selector, 0)
-                }
-            }
-        }
-    }
 }
 
 

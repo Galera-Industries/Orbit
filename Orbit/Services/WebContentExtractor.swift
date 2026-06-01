@@ -10,28 +10,186 @@ import AppKit
 
 final class WebContentExtractor {
     static let shared = WebContentExtractor()
+
+    private enum ExtractionFlow {
+        case standard
+        case datasetQuestions
+    }
+    
+    private struct ExtractedImage {
+        let url: String
+        let dataURL: String?
+    }
+    
+    private struct ExtractedQuestion {
+        let id: String
+        let html: String
+        let images: [ExtractedImage]
+    }
+
+    private struct InformativeSessionContext {
+        let informativeQuestionText: String
+        let trainPreview: String
+        let testPreview: String
+    }
+
+    private struct DatasetQuestionGroup {
+        let title: String
+        let questionText: String
+    }
+
+    private struct SavedQuestionPayload: Codable {
+        let number: Int
+        let text: String
+    }
+
+    private struct SavedQuestionsDocument: Codable {
+        let questions: [SavedQuestionPayload]
+        let mergedText: String
+        let savedAt: String
+    }
     
     private let deepSeekService = DeepSeekService.shared
     private let telegramService = TelegramBotService.shared
     private let vkService = VKService.shared
     private let screenshotManager = ScreenshotManager.shared
+    private var informativeSessionContext: InformativeSessionContext?
     
     private init() {}
     
     /// Извлекает содержимое <div role="main"> из открытой страницы Safari или Chrome
     func extractMainContent() {
+        extractContent(flow: .standard)
+    }
+
+    /// Извлекает вопросы в сценарии с "информативным" первым вопросом и CSV
+    func extractDatasetQuestionContent() {
+        extractContent(flow: .datasetQuestions)
+    }
+
+    /// Формирует контекст из main.py + questions.json + CSV и отправляет в ChatGPT.
+    /// Используется для сценария запуска из PyCharm.
+    func sendPyCharmProgressContext() {
+        guard deepSeekService.hasChatGPTToken else {
+            print("⚠️ Нет токена ChatGPT для отправки PyCharm-контекста")
+            return
+        }
+
+        let defaults = UserDefaults.standard
+        let folderPath = defaults.string(forKey: "datasetQuestionsFolder")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !folderPath.isEmpty else {
+            print("⚠️ Папка не выбрана. Укажите папку с train.csv, test.csv и main.py в настройках.")
+            return
+        }
+
+        let folderURL = URL(fileURLWithPath: folderPath, isDirectory: true)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            print("⚠️ Указанная папка недоступна: \(folderPath)")
+            return
+        }
+
+        let mainPyURL = folderURL.appendingPathComponent("main.py")
+        let mainPyText = readTextFile(
+            at: mainPyURL,
+            notFoundMessage: "Файл main.py не найден в выбранной папке.",
+            failedMessage: "Не удалось прочитать main.py."
+        )
+        guard !mainPyText.hasPrefix("Файл main.py не найден"), !mainPyText.hasPrefix("Не удалось прочитать") else {
+            print("⚠️ \(mainPyText)")
+            return
+        }
+
+        guard let lastTaskNumber = extractLastTaskNumber(from: mainPyText) else {
+            print("⚠️ В main.py не найдено комментариев формата '# 1', '# 2' и т.д.")
+            return
+        }
+
+        let allQuestions = loadSavedQuestionsFromOrbitFolder()
+        let questionsByNumber = Dictionary(uniqueKeysWithValues: allQuestions.map { ($0.number, $0.text) })
+        let firstNQuestionsText = (1...lastTaskNumber)
+            .map { number in
+                questionsByNumber[number] ?? "Вопрос с number: \(number) не найден в ~/Orbit/questions.json."
+            }
+            .joined(separator: "\n")
+        let currentQuestionText = questionsByNumber[lastTaskNumber]
+            ?? "Вопрос с number: \(lastTaskNumber) не найден в ~/Orbit/questions.json."
+
+        let trainPreview = readCSVPreview(at: folderURL.appendingPathComponent("train.csv"))
+        let testPreview = readCSVPreview(at: folderURL.appendingPathComponent("test.csv"))
+        let terminalOutputContext = loadLatestOrbitLogsOutput()
+        let terminalOutput = terminalOutputContext?.text ?? ""
+        let terminalOutputSection: String
+        if terminalOutput.isEmpty {
+            terminalOutputSection = ""
+            print("ℹ️ PyCharm context: файлов в ~/Orbit/logs нет, отправляю без блока run-output")
+        } else {
+            terminalOutputSection = """
+
+            Вот нынешний результат:
+            \(terminalOutput)
+            """
+        }
+
+        let finalPrompt = """
+        Верни только список изменений в формате:
+        1) какие строки изменить (диапазон или ориентир по коду),
+        2) что именно заменить/добавить,
+        3) как починить текущую ошибку.
+        Не присылай полный файл целиком и не повторяй исходный код без необходимости.
+
+        Текст первых \(lastTaskNumber) вопросов из файла ~/Orbit/questions.json:
+        \(firstNQuestionsText)
+
+        Вот по 10 строк train.csv и test.csv соответственно:
+
+        \(trainPreview)
+
+        \(testPreview)
+
+        Считай, что мы уже сделали все задания кроме последнего: \(currentQuestionText)
+
+        Вот какой код сейчас:
+        \(mainPyText)
+        \(terminalOutputSection)
+        """
+
+        if let terminalOutputContext {
+            print("ℹ️ PyCharm context: terminal output source = \(terminalOutputContext.source), chars = \(terminalOutput.count)")
+            persistDebugOutput(terminalOutput, in: folderURL, source: terminalOutputContext.source)
+        }
+
+        overwriteLatestResponse("Отправляю контекст из PyCharm...", type: "chatgpt")
+        deepSeekService.sendTextToChatGPT(prompt: finalPrompt) { [weak self] result in
+            guard let self = self else { return }
+
+            switch result {
+            case .success(let response):
+                self.overwriteLatestResponse(response, type: "chatgpt")
+                self.sendToMessengers(message: "🤖 ChatGPT\n\n\(response)", serviceName: "ChatGPT")
+                self.sendCombinedMessageToVK(chatgpt: response, deepseek: nil)
+                self.sendResponsesToBackend(chatgpt: response, deepseek: nil)
+            case .failure(let error):
+                print("❌ Ошибка отправки PyCharm-контекста в ChatGPT: \(error)")
+            }
+        }
+    }
+
+    private func extractContent(flow: ExtractionFlow) {
         guard let frontApp = NSWorkspace.shared.frontmostApplication else {
             print("⚠️ Не удалось определить активное приложение")
             return
         }
         
         let bundleID = frontApp.bundleIdentifier ?? ""
+        let appName = frontApp.localizedName ?? "Unknown Browser"
         print("🌐 Активное приложение: \(bundleID)")
         
         if bundleID == "com.apple.Safari" {
-            extractFromSafari()
-        } else if bundleID == "com.google.Chrome" || bundleID == "com.google.Chrome.canary" {
-            extractFromChrome()
+            extractFromSafari(flow: flow)
+        } else if isChromiumBrowser(bundleID: bundleID) {
+            extractFromChromiumBrowser(appName: appName, flow: flow)
         } else {
             print("⚠️ Активное приложение не является Safari или Chrome")
             // Можно попробовать извлечь из любого другого браузера через Accessibility
@@ -173,7 +331,7 @@ final class WebContentExtractor {
     
     // MARK: - Safari
     
-    private func extractFromSafari() {
+    private func extractFromSafari(flow: ExtractionFlow) {
         // Сначала делаем простой запрос, чтобы вызвать диалог разрешения если его еще нет
         // Это помогает macOS показать приложение в списке автоматизации
         let testScript = """
@@ -205,27 +363,68 @@ final class WebContentExtractor {
                     try
                         set jsResult to do JavaScript "
                             (function() {
-                                // Сначала пытаемся найти div main
-                                const mainDiv = document.querySelector('div[role=\\\"main\\\"]');
-                                if (mainDiv) {
-                                    const result = {
-                                        type: 'main',
-                                        url: window.location.href,
-                                        title: document.title,
-                                        html: mainDiv.outerHTML || ''
-                                    };
-                                    return JSON.stringify(result);
+                                function walk(node, hits) {
+                                    if (node.nodeType === 1 && node.tagName === 'DIV') {
+                                        // ищем main
+                                        if (node.getAttribute('role') === 'main') hits.main = node;
+                                        // ищем question
+                                        if (node.id && node.id.startsWith('question')) hits.questions.push(node);
+                                    }
+                                    for (const child of node.childNodes) walk(child, hits);
                                 }
+
+                                const hits = { main: null, questions: [] };
+                                walk(document.body, hits);
                                 
-                                // Если main не найден, ищем div'ы с id, начинающимся на 'question'
-                                const questionDivs = Array.from(document.querySelectorAll('div[id^=\\\"question\\\"]'));
-                                if (questionDivs.length > 0) {
-                                    const questionsHtml = questionDivs.map(div => div.outerHTML).join('');
+                                if (hits.questions.length > 0) {
+                                    function captureImageDataURL(img) {
+                                        try {
+                                            if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return '';
+                                            const canvas = document.createElement('canvas');
+                                            canvas.width = img.naturalWidth;
+                                            canvas.height = img.naturalHeight;
+                                            const ctx = canvas.getContext('2d');
+                                            if (!ctx) return '';
+                                            ctx.drawImage(img, 0, 0);
+                                            return canvas.toDataURL('image/png');
+                                        } catch (e) {
+                                            return '';
+                                        }
+                                    }
+                                    
+                                    const questions = hits.questions.map(div => {
+                                        const imageElements = Array.from(div.querySelectorAll('.qtext img, .formulation img'));
+                                        const images = imageElements
+                                            .map(img => {
+                                                const url = img.currentSrc || img.getAttribute('src') || '';
+                                                const data_url = captureImageDataURL(img);
+                                                return { url, data_url };
+                                            })
+                                            .filter(item => Boolean(item.url) || Boolean(item.data_url));
+                                        return {
+                                            id: div.id || '',
+                                            html: div.outerHTML || '',
+                                            images: images
+                                        };
+                                    });
+                                    const questionsHtml = questions.map(item => item.html).join('');
                                     const result = {
                                         type: 'questions',
                                         url: window.location.href,
                                         title: document.title,
-                                        html: questionsHtml
+                                        html: questionsHtml,
+                                        questions: questions
+                                    };
+                                    return JSON.stringify(result);
+                                }
+                                
+                                // Если question блоков нет, используем main
+                                if (hits.main) {
+                                    const result = {
+                                        type: 'main',
+                                        url: window.location.href,
+                                        title: document.title,
+                                        html: hits.main.outerHTML || ''
                                     };
                                     return JSON.stringify(result);
                                 }
@@ -248,16 +447,16 @@ final class WebContentExtractor {
         """
         
         executeAppleScript(script) { [weak self] result in
-            self?.processExtractedContent(result, isSafari: true)
+            self?.processExtractedContent(result, isSafari: true, flow: flow)
         }
     }
     
-    // MARK: - Chrome
+    // MARK: - Chromium Browsers
     
-    private func extractFromChrome() {
+    private func extractFromChromiumBrowser(appName: String, flow: ExtractionFlow) {
         // Сначала делаем простой запрос, чтобы вызвать диалог разрешения если его еще нет
         let testScript = """
-        tell application "Google Chrome"
+        tell application "\(appName)"
             get name
         end tell
         """
@@ -268,7 +467,7 @@ final class WebContentExtractor {
         
         // Для Chrome используем похожий подход, но синтаксис немного отличается
         let script = """
-        tell application "Google Chrome"
+        tell application "\(appName)"
             if not (exists window 1) then
                 return "ERROR: No window"
             end if
@@ -285,27 +484,68 @@ final class WebContentExtractor {
                     try
                         set jsResult to execute javascript "
                             (function() {
-                                // Сначала пытаемся найти div main
-                                const mainDiv = document.querySelector('div[role=\\\"main\\\"]');
-                                if (mainDiv) {
-                                    const result = {
-                                        type: 'main',
-                                        url: window.location.href,
-                                        title: document.title,
-                                        html: mainDiv.outerHTML || ''
-                                    };
-                                    return JSON.stringify(result);
+                                function walk(node, hits) {
+                                    if (node.nodeType === 1 && node.tagName === 'DIV') {
+                                        // ищем main
+                                        if (node.getAttribute('role') === 'main') hits.main = node;
+                                        // ищем question
+                                        if (node.id && node.id.startsWith('question')) hits.questions.push(node);
+                                    }
+                                    for (const child of node.childNodes) walk(child, hits);
                                 }
+
+                                const hits = { main: null, questions: [] };
+                                walk(document.body, hits);
                                 
-                                // Если main не найден, ищем div'ы с id, начинающимся на 'question'
-                                const questionDivs = Array.from(document.querySelectorAll('div[id^=\\\"question\\\"]'));
-                                if (questionDivs.length > 0) {
-                                    const questionsHtml = questionDivs.map(div => div.outerHTML).join('');
+                                if (hits.questions.length > 0) {
+                                    function captureImageDataURL(img) {
+                                        try {
+                                            if (!img || !img.complete || img.naturalWidth <= 0 || img.naturalHeight <= 0) return '';
+                                            const canvas = document.createElement('canvas');
+                                            canvas.width = img.naturalWidth;
+                                            canvas.height = img.naturalHeight;
+                                            const ctx = canvas.getContext('2d');
+                                            if (!ctx) return '';
+                                            ctx.drawImage(img, 0, 0);
+                                            return canvas.toDataURL('image/png');
+                                        } catch (e) {
+                                            return '';
+                                        }
+                                    }
+                                    
+                                    const questions = hits.questions.map(div => {
+                                        const imageElements = Array.from(div.querySelectorAll('.qtext img, .formulation img'));
+                                        const images = imageElements
+                                            .map(img => {
+                                                const url = img.currentSrc || img.getAttribute('src') || '';
+                                                const data_url = captureImageDataURL(img);
+                                                return { url, data_url };
+                                            })
+                                            .filter(item => Boolean(item.url) || Boolean(item.data_url));
+                                        return {
+                                            id: div.id || '',
+                                            html: div.outerHTML || '',
+                                            images: images
+                                        };
+                                    });
+                                    const questionsHtml = questions.map(item => item.html).join('');
                                     const result = {
                                         type: 'questions',
                                         url: window.location.href,
                                         title: document.title,
-                                        html: questionsHtml
+                                        html: questionsHtml,
+                                        questions: questions
+                                    };
+                                    return JSON.stringify(result);
+                                }
+                                
+                                // Если question блоков нет, используем main
+                                if (hits.main) {
+                                    const result = {
+                                        type: 'main',
+                                        url: window.location.href,
+                                        title: document.title,
+                                        html: hits.main.outerHTML || ''
                                     };
                                     return JSON.stringify(result);
                                 }
@@ -328,7 +568,7 @@ final class WebContentExtractor {
         """
         
         executeAppleScript(script) { [weak self] result in
-            self?.processExtractedContent(result, isSafari: false)
+            self?.processExtractedContent(result, isSafari: false, flow: flow)
         }
     }
     
@@ -360,6 +600,15 @@ final class WebContentExtractor {
             return "Microsoft Edge"
         }
         return NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
+    }
+    
+    private func isChromiumBrowser(bundleID: String) -> Bool {
+        let chromiumBundleIDs: Set<String> = [
+            "com.google.Chrome",
+            "com.google.Chrome.canary",
+            "ru.yandex.desktop.yandex-browser"
+        ]
+        return chromiumBundleIDs.contains(bundleID)
     }
     
     // MARK: - AppleScript Execution
@@ -413,7 +662,7 @@ final class WebContentExtractor {
     
     // MARK: - Content Processing
     
-    private func processExtractedContent(_ result: String?, isSafari: Bool) {
+    private func processExtractedContent(_ result: String?, isSafari: Bool, flow: ExtractionFlow) {
         guard let result = result, !result.isEmpty else {
             print("⚠️ Не удалось извлечь содержимое страницы, делаем скриншот...")
             fallbackToScreenshot()
@@ -464,8 +713,21 @@ final class WebContentExtractor {
         
         // Обрабатываем в зависимости от типа
         if contentType == "questions" {
-            // Для questions отправляем HTML напрямую в DeepSeek для извлечения вопросов
-            sendQuestionsToAI(html: html)
+            if let questionsJson = json["questions"] as? [[String: Any]], !questionsJson.isEmpty {
+                let questions = parseQuestions(from: questionsJson)
+                if !questions.isEmpty {
+                    if flow == .datasetQuestions {
+                        processDatasetQuestions(questions: questions, pageURL: pageURL)
+                    } else {
+                        sendQuestionsToAI(questions: questions)
+                    }
+                } else {
+                    sendQuestionsToAI(html: html)
+                }
+            } else {
+                // Fallback для старого формата
+                sendQuestionsToAI(html: html)
+            }
         } else if contentType == "main" {
             // Для main отправляем HTML напрямую в AI (без очистки)
             sendToAI(content: html, isHTML: true)
@@ -510,7 +772,433 @@ final class WebContentExtractor {
         
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    
+
+    private func processDatasetQuestions(questions: [ExtractedQuestion], pageURL: String?) {
+        guard !questions.isEmpty else { return }
+        prepareDatasetQuestionsForSaving(questions) { [weak self] preparedQuestions in
+            self?.saveDatasetQuestionsToJSON(preparedQuestions)
+        }
+
+        if let informativeIndex = questions.firstIndex(where: { isInformativeQuestion($0) }) {
+            var remainingQuestions = questions
+            let informativeQuestion = remainingQuestions.remove(at: informativeIndex)
+
+            prepareInformativeSessionContext(from: informativeQuestion, pageURL: pageURL) { [weak self] context in
+                guard let self = self else { return }
+                guard let context else {
+                    self.sendQuestionsToAI(questions: questions)
+                    return
+                }
+
+                self.informativeSessionContext = context
+                let groups = self.buildDatasetQuestionGroups(from: remainingQuestions)
+                guard !groups.isEmpty else {
+                    self.sendQuestionsToAI(questions: remainingQuestions)
+                    return
+                }
+
+                self.sendDatasetQuestionGroupsToAI(groups: groups, context: context)
+            }
+            return
+        }
+
+        guard let cachedContext = informativeSessionContext else {
+            sendQuestionsToAI(questions: questions)
+            return
+        }
+        let groups = buildDatasetQuestionGroups(from: questions)
+        guard !groups.isEmpty else {
+            sendQuestionsToAI(questions: questions)
+            return
+        }
+        sendDatasetQuestionGroupsToAI(groups: groups, context: cachedContext)
+    }
+
+    private func isInformativeQuestion(_ question: ExtractedQuestion) -> Bool {
+        let html = question.html.lowercased()
+        return html.contains("informationitem") || html.contains("que description")
+    }
+
+    private func prepareInformativeSessionContext(
+        from question: ExtractedQuestion,
+        pageURL: String?,
+        completion: @escaping (InformativeSessionContext?) -> Void
+    ) {
+        _ = pageURL
+        let informativeQuestionText = extractTextFromHTML(question.html)
+        let (trainPreview, testPreview) = loadDatasetPreviewsFromSelectedFolder()
+        completion(
+            InformativeSessionContext(
+                informativeQuestionText: informativeQuestionText,
+                trainPreview: trainPreview,
+                testPreview: testPreview
+            )
+        )
+    }
+
+    private func loadDatasetPreviewsFromSelectedFolder() -> (String, String) {
+        let defaults = UserDefaults.standard
+        let folderPath = defaults.string(forKey: "datasetQuestionsFolder")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard !folderPath.isEmpty else {
+            let message = "Папка не выбрана. Укажите папку с train.csv и test.csv в настройках."
+            return (message, message)
+        }
+
+        let folderURL = URL(fileURLWithPath: folderPath, isDirectory: true)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            let message = "Указанная папка недоступна: \(folderPath)"
+            return (message, message)
+        }
+
+        let trainURL = folderURL.appendingPathComponent("train.csv")
+        let testURL = folderURL.appendingPathComponent("test.csv")
+        let trainPreview = readCSVPreview(at: trainURL)
+        let testPreview = readCSVPreview(at: testURL)
+        return (trainPreview, testPreview)
+    }
+
+    private func readTextFile(at fileURL: URL, notFoundMessage: String, failedMessage: String) -> String {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return notFoundMessage
+        }
+        guard let data = try? Data(contentsOf: fileURL) else {
+            return failedMessage
+        }
+        return String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+    }
+
+    private func readCSVPreview(at fileURL: URL) -> String {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return "Файл \(fileURL.lastPathComponent) не найден."
+        }
+
+        guard let data = try? Data(contentsOf: fileURL) else {
+            return "Не удалось прочитать файл \(fileURL.lastPathComponent)."
+        }
+
+        let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let preview = lines.prefix(10).joined(separator: "\n")
+        return preview.isEmpty ? "Файл \(fileURL.lastPathComponent) пустой." : preview
+    }
+
+    private func extractLastTaskNumber(from pythonCode: String) -> Int? {
+        let pattern = #"(?m)^\s*#\s*(\d+)\s*$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let nsCode = pythonCode as NSString
+        let matches = regex.matches(in: pythonCode, range: NSRange(location: 0, length: nsCode.length))
+        guard let last = matches.last, last.numberOfRanges > 1 else { return nil }
+        let value = nsCode.substring(with: last.range(at: 1))
+        return Int(value)
+    }
+
+    private func loadSavedQuestionsFromOrbitFolder() -> [SavedQuestionPayload] {
+        let questionsURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Orbit", isDirectory: true)
+            .appendingPathComponent("questions.json")
+
+        guard let data = try? Data(contentsOf: questionsURL) else { return [] }
+
+        if let document = try? JSONDecoder().decode(SavedQuestionsDocument.self, from: data) {
+            return document.questions
+        }
+
+        if let flatQuestions = try? JSONDecoder().decode([SavedQuestionPayload].self, from: data) {
+            return flatQuestions
+        }
+
+        return []
+    }
+
+    private func loadLatestOrbitLogsOutput() -> (text: String, source: String)? {
+        let logsFolder = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Orbit", isDirectory: true)
+            .appendingPathComponent("logs", isDirectory: true)
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: logsFolder.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return nil
+        }
+
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isRegularFileKey]
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: logsFolder,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        let files = urls.compactMap { url -> (url: URL, modifiedAt: Date)? in
+            guard let values = try? url.resourceValues(forKeys: keys),
+                  values.isRegularFile == true else { return nil }
+            let modifiedAt = values.contentModificationDate ?? .distantPast
+            return (url, modifiedAt)
+        }
+
+        guard let latestFile = files.max(by: { $0.modifiedAt < $1.modifiedAt })?.url else {
+            return nil
+        }
+
+        let text = readTextFile(
+            at: latestFile,
+            notFoundMessage: "",
+            failedMessage: "Не удалось прочитать \(latestFile.lastPathComponent)."
+        )
+        guard !text.isEmpty else { return nil }
+
+        return (text, "~/Orbit/logs/\(latestFile.lastPathComponent)")
+    }
+
+    private func persistDebugOutput(_ output: String, in folderURL: URL, source: String) {
+        let debugURL = folderURL.appendingPathComponent("output.txt")
+        let globalDebugFolder = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Orbit", isDirectory: true)
+        let globalDebugURL = globalDebugFolder.appendingPathComponent("output.txt")
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let payload = """
+        # orbit_debug_saved_at: \(timestamp)
+        # source: \(source)
+
+        \(output)
+        """
+
+        do {
+            try payload.write(to: debugURL, atomically: true, encoding: .utf8)
+            print("🧪 Debug: сохранен output.txt (\(output.count) chars) в \(debugURL.path)")
+        } catch {
+            print("❌ Debug: не удалось сохранить output.txt: \(error)")
+        }
+
+        do {
+            try FileManager.default.createDirectory(at: globalDebugFolder, withIntermediateDirectories: true)
+            try payload.write(to: globalDebugURL, atomically: true, encoding: .utf8)
+            print("🧪 Debug: сохранен глобальный ~/Orbit/output.txt (\(output.count) chars)")
+        } catch {
+            print("❌ Debug: не удалось сохранить ~/Orbit/output.txt: \(error)")
+        }
+    }
+
+    private func buildDatasetQuestionGroups(from questions: [ExtractedQuestion]) -> [DatasetQuestionGroup] {
+        guard !questions.isEmpty else { return [] }
+
+        let textQuestions: [(taskNumber: Int, text: String)] = questions.enumerated().compactMap { index, question in
+            let text = extractTextFromHTML(question.html)
+            guard !text.isEmpty else { return nil }
+            return (taskNumber: index + 1, text: text)
+        }
+
+        guard !textQuestions.isEmpty else { return [] }
+
+        let body = textQuestions
+            .map { "# задание \($0.taskNumber)\n\($0.text)" }
+            .joined(separator: "\n\n")
+        return [DatasetQuestionGroup(title: "Все задания", questionText: body)]
+    }
+
+    private func prepareDatasetQuestionsForSaving(
+        _ questions: [ExtractedQuestion],
+        completion: @escaping ([SavedQuestionPayload]) -> Void
+    ) {
+        guard !questions.isEmpty else {
+            completion([])
+            return
+        }
+
+        var prepared: [SavedQuestionPayload] = []
+        prepareDatasetQuestionSequentially(
+            questions: questions,
+            index: 0,
+            prepared: prepared,
+            completion: completion
+        )
+    }
+
+    private func prepareDatasetQuestionSequentially(
+        questions: [ExtractedQuestion],
+        index: Int,
+        prepared: [SavedQuestionPayload],
+        completion: @escaping ([SavedQuestionPayload]) -> Void
+    ) {
+        guard index < questions.count else {
+            completion(prepared)
+            return
+        }
+
+        var nextPrepared = prepared
+        let question = questions[index]
+        let fallbackText = extractTextFromHTML(question.html)
+
+        guard deepSeekService.hasDeepSeekKey else {
+            if !fallbackText.isEmpty {
+                nextPrepared.append(SavedQuestionPayload(number: index + 1, text: fallbackText))
+            }
+            prepareDatasetQuestionSequentially(
+                questions: questions,
+                index: index + 1,
+                prepared: nextPrepared,
+                completion: completion
+            )
+            return
+        }
+
+        let extractionPrompt = """
+        извлеки только чистый текст задания из html ниже.
+        Удали служебный UI мусор (например: "Пока нет ответа", "Отметить вопрос", "Проверить", блоки загрузки файлов, кнопки и прочее).
+        Сохрани все важные формулировки, числа, ограничения, формулы и требования.
+        Верни только текст задания без пояснений.
+
+        html вопроса:
+        \(question.html)
+        """
+
+        deepSeekService.sendTextToDeepSeek(prompt: extractionPrompt, includeSystemMessage: false) { [weak self] result in
+            guard let self = self else { return }
+
+            let cleanedText: String
+            switch result {
+            case .success(let response):
+                let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+                cleanedText = trimmed.isEmpty ? fallbackText : trimmed
+            case .failure:
+                cleanedText = fallbackText
+            }
+
+            if !cleanedText.isEmpty {
+                nextPrepared.append(SavedQuestionPayload(number: index + 1, text: cleanedText))
+            }
+
+            self.prepareDatasetQuestionSequentially(
+                questions: questions,
+                index: index + 1,
+                prepared: nextPrepared,
+                completion: completion
+            )
+        }
+    }
+
+    private func saveDatasetQuestionsToJSON(_ preparedQuestions: [SavedQuestionPayload]) {
+        guard !preparedQuestions.isEmpty else { return }
+
+        let mergedText = preparedQuestions
+            .map { "# задание \($0.number)\n\($0.text)" }
+            .joined(separator: "\n\n")
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let document = SavedQuestionsDocument(
+            questions: preparedQuestions,
+            mergedText: mergedText,
+            savedAt: formatter.string(from: Date())
+        )
+
+        let orbitFolder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Orbit", isDirectory: true)
+        let questionsURL = orbitFolder.appendingPathComponent("questions.json")
+
+        do {
+            try FileManager.default.createDirectory(at: orbitFolder, withIntermediateDirectories: true)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+            let data = try encoder.encode(document)
+            try data.write(to: questionsURL, options: .atomic)
+            print("✅ Вопросы сохранены: \(questionsURL.path)")
+        } catch {
+            print("❌ Ошибка сохранения questions.json: \(error)")
+        }
+    }
+
+    private func sendDatasetQuestionGroupsToAI(groups: [DatasetQuestionGroup], context: InformativeSessionContext) {
+        guard !groups.isEmpty else { return }
+        clearStoredResponses(type: "deepseek")
+
+        if deepSeekService.hasChatGPTToken {
+            overwriteLatestResponse("Обрабатываю группы вопросов...", type: "chatgpt")
+        }
+
+        processDatasetGroupSequentially(
+            groups: groups,
+            index: 0,
+            context: context,
+            aggregatedChatGPT: []
+        )
+    }
+
+    private func processDatasetGroupSequentially(
+        groups: [DatasetQuestionGroup],
+        index: Int,
+        context: InformativeSessionContext,
+        aggregatedChatGPT: [String]
+    ) {
+        guard index < groups.count else {
+            let finalChatGPT = aggregatedChatGPT.joined(separator: "\n\n")
+
+            if !finalChatGPT.isEmpty {
+                overwriteLatestResponse(finalChatGPT, type: "chatgpt")
+                sendToMessengers(message: "🤖 ChatGPT\n\n\(finalChatGPT)", serviceName: "ChatGPT")
+            }
+            if !finalChatGPT.isEmpty {
+                sendCombinedMessageToVK(chatgpt: finalChatGPT, deepseek: nil)
+                sendResponsesToBackend(chatgpt: finalChatGPT, deepseek: nil)
+            }
+            return
+        }
+
+        let userPrompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
+        let groupItem = groups[index]
+
+        let finalPrompt = """
+        \(userPrompt)
+
+        Информативный вопрос:
+        \(context.informativeQuestionText)
+
+        Первые 10 строк train.csv:
+        \(context.trainPreview)
+
+        Первые 10 строк test.csv:
+        \(context.testPreview)
+
+        Задание:
+        \(groupItem.questionText)
+
+        Напиши код для решения. Считай, что файлы называются train.csv и test.csv и находятся в одной папке с кодом. Разделяй участки кода между заданиями с пумощью комментариев, например '# Задние 1', '# Задние 2', и т.д. Вс
+         решение на python
+        """
+
+        var nextChatGPT = aggregatedChatGPT
+        let group = DispatchGroup()
+
+        if deepSeekService.hasChatGPTToken {
+            group.enter()
+            deepSeekService.sendTextToChatGPT(prompt: finalPrompt) { result in
+                if case .success(let response) = result {
+                    nextChatGPT.append("### \(groupItem.title)\n\(response)")
+                }
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) { [weak self] in
+            guard let self = self else { return }
+
+            if !nextChatGPT.isEmpty {
+                self.overwriteLatestResponse(nextChatGPT.joined(separator: "\n\n"), type: "chatgpt")
+            }
+
+            self.processDatasetGroupSequentially(
+                groups: groups,
+                index: index + 1,
+                context: context,
+                aggregatedChatGPT: nextChatGPT
+            )
+        }
+    }
+
     // MARK: - Fallback to Screenshot
     
     /// Fallback: делаем скриншот выбранной области и отправляем в AI
@@ -559,6 +1247,8 @@ final class WebContentExtractor {
     
     /// Отправляет HTML вопросов в DeepSeek для извлечения вопросов и вариантов ответов
     private func sendQuestionsToAI(html: String) {
+        clearStoredResponses(type: "deepseek")
+
         // Промпт из screenshot settings
         let userPrompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
         
@@ -569,8 +1259,8 @@ final class WebContentExtractor {
         // Проверяем, есть ли ключ DeepSeek для извлечения
         guard deepSeekService.hasDeepSeekKey else {
             print("⚠️ Нет ключа DeepSeek для извлечения вопросов")
-            // Если нет ключа DeepSeek, отправляем HTML напрямую в ChatGPT и DeepSeek
-            sendToChatGPTAndDeepSeek(content: html, userPrompt: userPrompt)
+            // Если нет ключа DeepSeek, отправляем HTML напрямую только в ChatGPT
+            sendToChatGPTOnly(content: html, userPrompt: userPrompt)
             return
         }
         
@@ -582,14 +1272,164 @@ final class WebContentExtractor {
             case .success(let extractedText):
                 print("✅ DeepSeek (извлечение вопросов) ответ получен: \(extractedText.prefix(100))...")
                 
-                // Используем извлечённый текст для отправки в ChatGPT и DeepSeek с пользовательским промптом
-                self.sendToChatGPTAndDeepSeek(content: extractedText, userPrompt: userPrompt)
+                // Используем извлечённый текст и отправляем его только в ChatGPT
+                self.sendToChatGPTOnly(content: extractedText, userPrompt: userPrompt)
                 
             case .failure(let error):
                 print("❌ DeepSeek (извлечение вопросов) ошибка: \(error)")
                 // Если извлечение не удалось, отправляем исходный HTML
                 print("⚠️ Использую исходный HTML для отправки в ChatGPT и DeepSeek")
-                self.sendToChatGPTAndDeepSeek(content: html, userPrompt: userPrompt)
+                self.sendToChatGPTOnly(content: html, userPrompt: userPrompt)
+            }
+        }
+    }
+    
+    /// Отправляет вопросы по одному, накапливая ответ в панели
+    private func sendQuestionsToAI(questions: [ExtractedQuestion]) {
+        guard !questions.isEmpty else { return }
+        clearStoredResponses(type: "deepseek")
+        
+        let userPrompt = UserDefaults.standard.string(forKey: "deepseekPrompt") ?? "Что изображено?"
+        
+        // Подготовка "живого" накопления в верхней карточке ответов
+        if deepSeekService.hasChatGPTToken {
+            overwriteLatestResponse("Обрабатываю вопросы...", type: "chatgpt")
+        }
+        
+        processQuestionSequentially(
+            questions: questions,
+            index: 0,
+            userPrompt: userPrompt,
+            aggregatedChatGPT: []
+        )
+    }
+    
+    private func processQuestionSequentially(
+        questions: [ExtractedQuestion],
+        index: Int,
+        userPrompt: String,
+        aggregatedChatGPT: [String]
+    ) {
+        guard index < questions.count else {
+            let finalChatGPT = aggregatedChatGPT.joined(separator: "\n\n")
+            
+            if !finalChatGPT.isEmpty {
+                overwriteLatestResponse(finalChatGPT, type: "chatgpt")
+            }
+            
+            if !finalChatGPT.isEmpty {
+                sendToMessengers(message: "🤖 ChatGPT\n\n\(finalChatGPT)", serviceName: "ChatGPT")
+            }
+            if !finalChatGPT.isEmpty {
+                sendCombinedMessageToVK(chatgpt: finalChatGPT, deepseek: nil)
+                sendResponsesToBackend(chatgpt: finalChatGPT, deepseek: nil)
+            }
+            return
+        }
+        
+        let question = questions[index]
+        let questionNumber = index + 1
+        let total = questions.count
+        
+        let imageURLs = question.images.map(\.url).filter { !$0.isEmpty }
+        let imageDataURLs = question.images.compactMap { image -> String? in
+            guard let dataURL = image.dataURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !dataURL.isEmpty else { return nil }
+            return dataURL
+        }
+        
+        let imageList = imageURLs.isEmpty
+            ? "Изображений нет."
+            : imageURLs.map { "- \($0)" }.joined(separator: "\n")
+        
+        let extractionPrompt = """
+        извлеки отсюда вопрос и варианты ответов, укажи тип выбора (одиночный/множественный), сохрани все важные детали.
+        id вопроса: \(question.id)
+        изображения в вопросе:
+        \(imageList)
+        
+        html вопроса:
+        \(question.html)
+        """
+        
+        let extractionCompletion: (String) -> Void = { [weak self] extractedText in
+            guard let self = self else { return }
+            
+            var contextBlock = """
+            [Вопрос \(questionNumber)/\(total), id: \(question.id)]
+            """
+            if !imageURLs.isEmpty {
+                contextBlock += "\nИзображения вопроса (URL):\n\(imageList)\n"
+            }
+            
+            let finalContent = "\(contextBlock)\n\n\(extractedText)"
+            let finalPrompt = "\(userPrompt)\n\n\(finalContent)"
+            
+            var nextChatGPT = aggregatedChatGPT
+            
+            let group = DispatchGroup()
+            
+            if self.deepSeekService.hasChatGPTToken {
+                group.enter()
+                self.deepSeekService.sendTextToChatGPT(prompt: finalPrompt, imageDataURLs: imageDataURLs) { result in
+                    if case .success(let response) = result {
+                        let chunk = "### Вопрос \(questionNumber)\n\(response)"
+                        nextChatGPT.append(chunk)
+                    }
+                    group.leave()
+                }
+            }
+            
+            group.notify(queue: .main) {
+                let chatgptResult = nextChatGPT.joined(separator: "\n\n")
+                
+                if !chatgptResult.isEmpty {
+                    self.overwriteLatestResponse(chatgptResult, type: "chatgpt")
+                }
+                
+                self.processQuestionSequentially(
+                    questions: questions,
+                    index: index + 1,
+                    userPrompt: userPrompt,
+                    aggregatedChatGPT: nextChatGPT
+                )
+            }
+        }
+        
+        if deepSeekService.hasDeepSeekKey {
+            deepSeekService.sendTextToDeepSeek(prompt: extractionPrompt, includeSystemMessage: false) { result in
+                switch result {
+                case .success(let extractedText):
+                    extractionCompletion(extractedText)
+                case .failure:
+                    extractionCompletion(question.html)
+                }
+            }
+        } else {
+            extractionCompletion(question.html)
+        }
+    }
+
+    /// Отправляет текст только в ChatGPT (DeepSeek используется только для экстракции вопросов)
+    private func sendToChatGPTOnly(content: String, userPrompt: String) {
+        guard deepSeekService.hasChatGPTToken else {
+            print("⚠️ Нет токена ChatGPT для отправки ответов")
+            return
+        }
+
+        let finalPrompt = "\(userPrompt)\n\n\(content)"
+        print("📤 Отправляю текст только в ChatGPT...")
+        deepSeekService.sendTextToChatGPT(prompt: finalPrompt) { [weak self] result in
+            guard let self = self else { return }
+
+            switch result {
+            case .success(let response):
+                self.saveResponse(response, type: "chatgpt")
+                self.sendToMessengers(message: "🤖 ChatGPT\n\n\(response)", serviceName: "ChatGPT")
+                self.sendCombinedMessageToVK(chatgpt: response, deepseek: nil)
+                self.sendResponsesToBackend(chatgpt: response, deepseek: nil)
+            case .failure(let error):
+                print("❌ ChatGPT ошибка: \(error)")
             }
         }
     }
@@ -678,7 +1518,7 @@ final class WebContentExtractor {
             }
         }
     }
-    
+
     /// Сохраняет ответ в UserDefaults
     private func saveResponse(_ response: String, type: String = "deepseek") {
         // Сохраняем в стандартный UserDefaults (так панель сможет их прочитать напрямую)
@@ -695,6 +1535,59 @@ final class WebContentExtractor {
         }
         
         print("✅ Ответ сохранен в UserDefaults: \(type), длина: \(response.count) символов")
+    }
+    
+    /// Перезаписывает верхний (самый свежий) ответ, чтобы панель показывала накопление в реальном времени.
+    private func overwriteLatestResponse(_ response: String, type: String = "deepseek") {
+        let defaults = UserDefaults.standard
+        let key = type == "chatgpt" ? "chatgptResponses" : "deepseekResponses"
+        var responses = defaults.stringArray(forKey: key) ?? []
+        
+        if responses.isEmpty {
+            responses = [response]
+        } else {
+            responses[0] = response
+        }
+        
+        defaults.set(responses, forKey: key)
+        if let groupDefaults = UserDefaults(suiteName: "group.com.orbit.app") {
+            groupDefaults.set(responses, forKey: key)
+        }
+    }
+
+    private func clearStoredResponses(type: String) {
+        let defaults = UserDefaults.standard
+        let key = type == "chatgpt" ? "chatgptResponses" : "deepseekResponses"
+        defaults.set([], forKey: key)
+        if let groupDefaults = UserDefaults(suiteName: "group.com.orbit.app") {
+            groupDefaults.set([], forKey: key)
+        }
+    }
+    
+    private func parseQuestions(from raw: [[String: Any]]) -> [ExtractedQuestion] {
+        raw.compactMap { item in
+            guard let html = item["html"] as? String, !html.isEmpty else { return nil }
+            let id = item["id"] as? String ?? UUID().uuidString
+            let images: [ExtractedImage]
+            
+            if let structuredImages = item["images"] as? [[String: Any]] {
+                images = structuredImages.compactMap { image in
+                    let url = (image["url"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    let dataURL = (image["data_url"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if url.isEmpty && (dataURL == nil || dataURL?.isEmpty == true) {
+                        return nil
+                    }
+                    return ExtractedImage(url: url, dataURL: dataURL)
+                }
+            } else {
+                images = (item["images"] as? [String] ?? [])
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .map { ExtractedImage(url: $0, dataURL: nil) }
+            }
+            
+            return ExtractedQuestion(id: id, html: html, images: images)
+        }
     }
     
     /// Отправляет сообщение в Telegram и VK (если настроены)

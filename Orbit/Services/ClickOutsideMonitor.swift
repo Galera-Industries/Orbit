@@ -18,7 +18,8 @@ final class ClickOutsideMonitor {
         ) { _ in
             guard window.isVisible else { return }
             let p = NSEvent.mouseLocation
-            if !window.frame.contains(p) {
+            let anyOrbitWindowContains = NSApp.windows.contains { $0.isVisible && $0.frame.contains(p) }
+            if !anyOrbitWindowContains {
                 onOutside()
             }
         }
@@ -27,8 +28,10 @@ final class ClickOutsideMonitor {
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { event in
             guard window.isVisible else { return event }
+            // Don't hide if any app window (including sheets) contains the click
             let p = NSEvent.mouseLocation
-            if !window.frame.contains(p) {
+            let anyOrbitWindowContains = NSApp.windows.contains { $0.isVisible && $0.frame.contains(p) }
+            if !anyOrbitWindowContains {
                 onOutside()
             }
             return event
